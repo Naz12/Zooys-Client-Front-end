@@ -9,12 +9,13 @@ import FlashcardCard from "@/components/flashcard-card";
 import DiagramCard from "@/components/diagram-card";
 import WriterCard from "@/components/writer-card";
 import AiChatCard from "@/components/ai-chat-card";
-
 import PdfCard from "@/components/pdf-card";
-
+import { useTabState, type TabValue } from "@/lib/tab-context";
 import { Bell, Search, Podcast } from "lucide-react";
 
 export default function DashboardTabs() {
+  const { activeTab, setActiveTab } = useTabState();
+
   const tabs = [
     { value: "summary", label: "Summary" },
     { value: "youtube", label: "YouTube" },
@@ -27,8 +28,12 @@ export default function DashboardTabs() {
     { value: "diagram", label: "Diagram" },
   ];
 
+  const handleTabChange = (value: string) => {
+    setActiveTab(value as TabValue);
+  };
+
   return (
-    <Tabs defaultValue="summary" className="w-full">
+    <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
       {/* Tab Buttons */}
       <TabsList className="flex gap-6 border-b border-border bg-transparent mb-6">
         {tabs.map((tab) => (
