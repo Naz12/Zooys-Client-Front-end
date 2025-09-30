@@ -19,7 +19,7 @@ interface AuthState {
 }
 
 interface AuthContextType extends AuthState {
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
@@ -210,20 +210,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Login function
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, rememberMe: boolean = false) => {
     dispatch({ type: 'AUTH_START' });
     
     try {
       const data = await apiCall('/login', {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, remember_me: rememberMe }),
       });
 
-      const { user, token } = data;
+      const { user, token, refresh_token, expires_in } = data;
       
       // Store in localStorage
       localStorage.setItem('auth_token', token);
       localStorage.setItem('auth_user', JSON.stringify(user));
+      
+      if (refresh_token) {
+        localStorage.setItem('refresh_token', refresh_token);
+      }
+      
+      if (expires_in) {
+        const expiresAt = Date.now() + (expires_in * 1000);
+        localStorage.setItem('token_expires_at', expiresAt.toString());
+      }
+      
+      // Store remember me preference
+      localStorage.setItem('remember_me', rememberMe.toString());
       
       dispatch({ type: 'AUTH_SUCCESS', payload: { user, token } });
     } catch (error) {
@@ -271,6 +283,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Clear local storage
       localStorage.removeItem('auth_token');
       localStorage.removeItem('auth_user');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('token_expires_at');
+      
+      // Only clear remember me if user explicitly logs out
+      // (not on session expiry)
+      const rememberMe = localStorage.getItem('remember_me') === 'true';
+      if (!rememberMe) {
+        localStorage.removeItem('remembered_email');
+        localStorage.removeItem('remember_me');
+      }
       
       dispatch({ type: 'AUTH_LOGOUT' });
     }

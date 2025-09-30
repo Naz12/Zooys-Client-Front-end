@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
+import { environment } from '@/lib/environment';
 
 interface LoginFormProps {
   onSwitchToRegister: () => void;
@@ -13,10 +14,24 @@ interface LoginFormProps {
 export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
   const { login, clearError } = useAuth();
+
+  // Load saved credentials on component mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedEmail = localStorage.getItem('remembered_email');
+      const savedRememberMe = localStorage.getItem('remember_me') === 'true';
+      
+      if (savedEmail && savedRememberMe) {
+        setEmail(savedEmail);
+        setRememberMe(savedRememberMe);
+      }
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +39,16 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
     setError('');
 
     try {
-      await login(email, password);
+      await login(email, password, rememberMe);
+      
+      // Save credentials if remember me is checked
+      if (rememberMe) {
+        localStorage.setItem('remembered_email', email);
+        localStorage.setItem('remember_me', 'true');
+      } else {
+        localStorage.removeItem('remembered_email');
+        localStorage.removeItem('remember_me');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
@@ -79,6 +103,20 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
               required
               disabled={isLoading}
             />
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <input
+              id="remember-me"
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+              disabled={isLoading}
+            />
+            <label htmlFor="remember-me" className="text-sm text-muted-foreground">
+              Remember me
+            </label>
           </div>
 
           {error && (
