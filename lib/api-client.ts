@@ -1,7 +1,20 @@
 "use client";
 
-// API base URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+import type { 
+  User, 
+  AuthResponse, 
+  SubscriptionPlan, 
+  Subscription, 
+  UsageStats, 
+  CheckoutResponse,
+  YouTubeSummarizeResponse,
+  ChatRequest,
+  ChatResponse,
+  ChatHistoryResponse
+} from './types/api';
+
+// API base URL - Hardcoded to fix double /api issue
+const API_BASE_URL = 'http://localhost:8000';
 
 // API client class
 export class ApiClient {
@@ -31,6 +44,7 @@ export class ApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
+    console.log('API Request URL:', url); // Debug log
     const token = this.token || this.getStoredToken();
 
     const config: RequestInit = {
@@ -144,23 +158,31 @@ export const apiClient = new ApiClient();
 // API endpoints
 export const API_ENDPOINTS = {
   // Authentication
-  LOGIN: '/login',
-  REGISTER: '/register',
-  LOGOUT: '/logout',
+  LOGIN: '/api/login',
+  REGISTER: '/api/register',
+  LOGOUT: '/api/logout',
+  USER: '/api/user',
   
   // Subscription
-  PLANS: '/plans',
-  SUBSCRIPTION: '/subscription',
-  SUBSCRIPTION_HISTORY: '/subscription/history',
-  STRIPE_WEBHOOK: '/stripe/webhook',
+  PLANS: '/api/plans',
+  SUBSCRIPTION: '/api/subscription',
+  SUBSCRIPTION_HISTORY: '/api/subscription/history',
+  USAGE: '/api/usage',
+  
+  // Payment
+  CHECKOUT: '/api/checkout',
   
   // AI Tools
-  YOUTUBE_SUMMARIZE: '/youtube/summarize',
-  PDF_SUMMARIZE: '/pdf/summarize',
-  WRITER_RUN: '/writer/run',
-  MATH_SOLVE: '/math/solve',
-  FLASHCARDS_GENERATE: '/flashcards/generate',
-  DIAGRAM_GENERATE: '/diagram/generate',
+  YOUTUBE_SUMMARIZE: '/api/youtube/summarize',
+  PDF_SUMMARIZE: '/api/pdf/summarize',
+  WRITER_RUN: '/api/writer/run',
+  MATH_SOLVE: '/api/math/solve',
+  FLASHCARDS_GENERATE: '/api/flashcards/generate',
+  DIAGRAM_GENERATE: '/api/diagram/generate',
+  
+  // AI Chat
+  CHAT: '/api/chat',
+  CHAT_HISTORY: '/api/chat/history',
 } as const;
 
 // Type definitions for API responses
@@ -168,35 +190,6 @@ export interface ApiResponse<T = any> {
   data?: T;
   message?: string;
   success?: boolean;
-}
-
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-}
-
-export interface AuthResponse {
-  user: User;
-  token: string;
-}
-
-export interface SubscriptionPlan {
-  id: string;
-  name: string;
-  price: number;
-  currency: string;
-  interval: string;
-  limit: number;
-}
-
-export interface Subscription {
-  plan: SubscriptionPlan;
-  price: number;
-  currency: string;
-  limit: number;
-  starts_at: string;
-  ends_at: string;
 }
 
 // Utility functions for common API operations
@@ -208,7 +201,10 @@ export const authApi = {
     apiClient.post<AuthResponse>(API_ENDPOINTS.REGISTER, { name, email, password }),
   
   logout: () =>
-    apiClient.post(API_ENDPOINTS.LOGOUT),
+    apiClient.post<{ message: string }>(API_ENDPOINTS.LOGOUT),
+  
+  getCurrentUser: () =>
+    apiClient.get<User>(API_ENDPOINTS.USER),
 };
 
 export const subscriptionApi = {
@@ -220,11 +216,23 @@ export const subscriptionApi = {
   
   getSubscriptionHistory: () =>
     apiClient.get<Subscription[]>(API_ENDPOINTS.SUBSCRIPTION_HISTORY),
+  
+  getUsageStats: () =>
+    apiClient.get<UsageStats>(API_ENDPOINTS.USAGE),
+};
+
+export const paymentApi = {
+  createCheckoutSession: (planId: number, successUrl: string, cancelUrl: string) =>
+    apiClient.post<CheckoutResponse>(API_ENDPOINTS.CHECKOUT, {
+      plan_id: planId,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+    }),
 };
 
 export const aiToolsApi = {
   summarizeYouTube: (videoUrl: string, language?: string, mode?: string) =>
-    apiClient.post<{ summary: string }>(API_ENDPOINTS.YOUTUBE_SUMMARIZE, {
+    apiClient.post<YouTubeSummarizeResponse>(API_ENDPOINTS.YOUTUBE_SUMMARIZE, {
       video_url: videoUrl,
       language,
       mode,
@@ -253,7 +261,15 @@ export const aiToolsApi = {
     ),
   
   generateDiagram: (description: string) =>
-    apiClient.post<{ diagram_text: string }>(API_ENDPOINTS.DIAGRAM_GENERATE, {
+    apiClient.post<{ diagram: string }>(API_ENDPOINTS.DIAGRAM_GENERATE, {
       description,
     }),
+};
+
+export const chatApi = {
+  sendMessage: (request: ChatRequest) =>
+    apiClient.post<ChatResponse>(API_ENDPOINTS.CHAT, request),
+  
+  getChatHistory: (perPage: number = 10, page: number = 1) =>
+    apiClient.get<ChatHistoryResponse>(`${API_ENDPOINTS.CHAT_HISTORY}?per_page=${perPage}&page=${page}`),
 };

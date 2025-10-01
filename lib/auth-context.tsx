@@ -122,6 +122,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Restore authentication state on mount
   useEffect(() => {
+    // Only run on client side to prevent hydration mismatch
+    if (typeof window === 'undefined') return;
+    
     const restoreAuth = () => {
       try {
         const token = localStorage.getItem('auth_token');

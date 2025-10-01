@@ -228,3 +228,32 @@
 
 This backend API provides a comprehensive foundation for the Zooys Dashboard, with all the necessary endpoints for authentication, subscription management, and AI tool functionality. The frontend implementation will need to integrate with these endpoints to provide a seamless user experience.
 
+## Updated API Endpoints
+
+The API has been updated with the following endpoint structure:
+
+### Authentication Endpoints
+- `POST /api/register` - User registration
+- `POST /api/login` - User authentication  
+- `POST /api/logout` - User logout
+- `GET /api/user` - Get current user profile
+
+### Subscription Endpoints
+- `GET /api/plans` - Get available subscription plans
+- `GET /api/subscription` - Get current subscription
+- `GET /api/subscription/history` - Get subscription history
+- `GET /api/usage` - Get usage statistics (not implemented yet)
+
+### Payment Endpoints
+- `POST /api/checkout` - Create Stripe checkout session (not implemented yet)
+
+### AI Tool Endpoints
+- `POST /api/youtube/summarize` - YouTube video summarization
+- `POST /api/pdf/summarize` - PDF document summarization
+- `POST /api/writer/run` - AI content writing
+- `POST /api/math/solve` - Math problem solving
+- `POST /api/flashcards/generate` - Flashcard generation
+- `POST /api/diagram/generate` - Diagram generation
+
+For detailed API documentation, see [API_ENDPOINTS.md](./API_ENDPOINTS.md).
+

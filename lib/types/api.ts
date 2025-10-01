@@ -16,13 +16,14 @@ export interface ApiError {
 
 // Authentication Types
 export interface User {
-  id: string;
+  id: number;
   name: string;
   email: string;
-  created_at?: string;
-  updated_at?: string;
-  email_verified?: boolean;
-  subscription_id?: string;
+  is_active: boolean;
+  status: 'active' | 'inactive' | 'suspended';
+  suspended_at?: string | null;
+  suspension_reason?: string | null;
+  created_at: string;
 }
 
 export interface AuthResponse {
@@ -47,43 +48,55 @@ export interface RegisterRequest {
 
 // Subscription Types
 export interface SubscriptionPlan {
-  id: string;
+  id: number;
   name: string;
-  description?: string;
-  price: number;
+  price: string;
   currency: string;
-  interval: 'monthly' | 'yearly' | 'lifetime';
   limit: number;
-  features: string[];
-  is_popular?: boolean;
-  is_active?: boolean;
+  is_active: boolean;
 }
 
 export interface Subscription {
-  id: string;
-  user_id: string;
-  plan: SubscriptionPlan;
-  status: 'active' | 'inactive' | 'cancelled' | 'expired';
-  price: number;
-  currency: string;
-  limit: number;
-  usage: number;
-  starts_at: string;
-  ends_at: string;
-  created_at: string;
-  updated_at: string;
+  status: 'active' | 'none';
+  plan?: string;
+  price?: string;
+  currency?: string;
+  limit?: number;
+  starts_at?: string;
+  ends_at?: string;
+  message?: string;
 }
 
 export interface SubscriptionHistory {
-  id: string;
-  user_id: string;
-  plan_id: string;
-  status: string;
-  price: number;
+  plan: string;
+  price: string;
   currency: string;
+  limit: number;
+  active: boolean;
   starts_at: string;
   ends_at: string;
-  created_at: string;
+}
+
+// Usage Statistics Types
+export interface UsageStats {
+  current_usage: number;
+  plan_limit: number;
+  usage_percentage: number;
+  remaining_usage: number;
+  reset_date: string;
+  by_tool: Record<string, number>;
+}
+
+// Payment Types
+export interface CheckoutRequest {
+  plan_id: number;
+  success_url: string;
+  cancel_url: string;
+}
+
+export interface CheckoutResponse {
+  checkout_url: string;
+  session_id: string;
 }
 
 // AI Tool Types
@@ -93,12 +106,16 @@ export interface YouTubeSummarizeRequest {
   mode?: 'brief' | 'detailed' | 'key_points';
 }
 
+export interface YouTubeVideoInfo {
+  title: string;
+  channel: string;
+  duration: string;
+  views: string;
+}
+
 export interface YouTubeSummarizeResponse {
   summary: string;
-  video_title?: string;
-  video_duration?: string;
-  key_points?: string[];
-  timestamp?: string;
+  video_info: YouTubeVideoInfo;
 }
 
 export interface PDFSummarizeRequest {
@@ -109,9 +126,6 @@ export interface PDFSummarizeRequest {
 
 export interface PDFSummarizeResponse {
   summary: string;
-  page_count?: number;
-  key_points?: string[];
-  timestamp?: string;
 }
 
 export interface WriterRunRequest {
@@ -123,9 +137,6 @@ export interface WriterRunRequest {
 
 export interface WriterRunResponse {
   output: string;
-  word_count?: number;
-  reading_time?: number;
-  timestamp?: string;
 }
 
 export interface MathSolveRequest {
@@ -136,9 +147,6 @@ export interface MathSolveRequest {
 
 export interface MathSolveResponse {
   solution: string;
-  steps?: string[];
-  explanation?: string;
-  timestamp?: string;
 }
 
 export interface FlashcardGenerateRequest {
@@ -149,18 +157,12 @@ export interface FlashcardGenerateRequest {
 }
 
 export interface Flashcard {
-  id: string;
   question: string;
   answer: string;
-  difficulty?: string;
-  subject?: string;
 }
 
 export interface FlashcardGenerateResponse {
   flashcards: Flashcard[];
-  topic: string;
-  count: number;
-  timestamp?: string;
 }
 
 export interface DiagramGenerateRequest {
@@ -170,10 +172,45 @@ export interface DiagramGenerateRequest {
 }
 
 export interface DiagramGenerateResponse {
-  diagram_text: string;
-  diagram_type: string;
-  mermaid_code?: string;
-  timestamp?: string;
+  diagram: string;
+}
+
+// AI Chat Types
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatRequest {
+  message: string;
+  conversation_history?: ChatMessage[];
+  model?: string;
+  temperature?: number;
+  max_tokens?: number;
+}
+
+export interface ChatResponse {
+  response: string;
+  model_used: string;
+  timestamp: string;
+}
+
+export interface ChatHistoryItem {
+  id: number;
+  user_id: number;
+  tool_id: number;
+  input: string;
+  output: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatHistoryResponse {
+  data: ChatHistoryItem[];
+  total: number;
+  per_page: number;
+  current_page: number;
+  last_page: number;
 }
 
 // File Upload Types
