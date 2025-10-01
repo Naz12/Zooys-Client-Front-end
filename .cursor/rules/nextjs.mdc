@@ -1,0 +1,23 @@
+---
+alwaysApply: true
+---
+Reuse existing code/components before creating new ones.
+
+Keep components small, focused, and reusable.
+
+Stay within the tech stack (Next.js, React, Tailwind, shadcn, React Query).
+
+Always add loading states for async actions.
+
+Always handle errors with try/catch and user feedback.
+
+Centralize API calls in shared utilities/hooks.
+
+Use TypeScript strict typing for props, API, and functions.
+
+Follow consistent naming and file structure.
+
+Keep UI consistent with Tailwind + shadcn design system.
+
+Avoid overengineering; prefer simple solutions.
+
