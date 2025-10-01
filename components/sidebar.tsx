@@ -9,8 +9,11 @@ import {
   Calculator,
   Layers,
   BookOpen,
+  User,
+  CreditCard,
 } from "lucide-react";
 import { useTabState, type TabValue } from "@/lib/tab-context";
+import Link from "next/link";
 
 export default function Sidebar() {
   const { activeTab, setActiveTab } = useTabState();
@@ -35,7 +38,7 @@ export default function Sidebar() {
       {/* Logo */}
       <div>
         <h1 className="text-2xl font-extrabold bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent mb-8">
-          NoteGPT
+          Zooys
         </h1>
 
         {/* Navigation */}
@@ -75,8 +78,26 @@ export default function Sidebar() {
         </nav>
       </div>
 
+      {/* Account & Settings */}
+      <div className="space-y-2 mt-6">
+        <Link
+          href="/profile"
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium hover:bg-muted transition-colors"
+        >
+          <User size={18} />
+          Profile
+        </Link>
+        <Link
+          href="/subscription"
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium hover:bg-muted transition-colors"
+        >
+          <CreditCard size={18} />
+          Subscription
+        </Link>
+      </div>
+
       {/* Footer */}
-      <div className="text-xs text-muted-foreground mt-6">© 2025 NoteGPT</div>
+      <div className="text-xs text-muted-foreground mt-6">© 2025 Zooys</div>
     </aside>
   );
 }

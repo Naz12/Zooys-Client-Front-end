@@ -226,5 +226,5 @@
 
 ---
 
-This backend API provides a comprehensive foundation for the NoteGPT Dashboard, with all the necessary endpoints for authentication, subscription management, and AI tool functionality. The frontend implementation will need to integrate with these endpoints to provide a seamless user experience.
+This backend API provides a comprehensive foundation for the Zooys Dashboard, with all the necessary endpoints for authentication, subscription management, and AI tool functionality. The frontend implementation will need to integrate with these endpoints to provide a seamless user experience.
 

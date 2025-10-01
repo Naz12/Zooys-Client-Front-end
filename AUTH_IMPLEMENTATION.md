@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the authentication system implemented for the NoteGPT Dashboard. The system provides secure user authentication, session management, and integration with the backend API.
+This document describes the authentication system implemented for the Zooys Dashboard. The system provides secure user authentication, session management, and integration with the backend API.
 
 ## Architecture
 
@@ -293,4 +293,4 @@ For issues or questions about the authentication system:
 4. Check network connectivity
 5. Review authentication state in localStorage
 
-The authentication system is designed to be robust, secure, and user-friendly while providing a solid foundation for the NoteGPT Dashboard application.
+The authentication system is designed to be robust, secure, and user-friendly while providing a solid foundation for the Zooys Dashboard application.

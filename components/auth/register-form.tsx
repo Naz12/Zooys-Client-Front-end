@@ -73,7 +73,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
       <div className="space-y-6">
         <div className="text-center">
           <h2 className="text-2xl font-bold">Create Account</h2>
-          <p className="text-muted-foreground">Sign up for NoteGPT Dashboard</p>
+          <p className="text-muted-foreground">Sign up for Zooys Dashboard</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -162,7 +162,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
             <button
               type="button"
               onClick={onSwitchToLogin}
-              className="text-primary hover:underline font-medium"
+              className="text-primary hover:underline font-semibold text-base"
             >
               Sign in
             </button>

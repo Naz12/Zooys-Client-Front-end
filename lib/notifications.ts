@@ -37,135 +37,44 @@ const icons = {
   info: 'ℹ️',
 };
 
-// Custom notification component
-const NotificationComponent = ({ 
-  type, 
-  title, 
-  message, 
-  action 
-}: { 
-  type: NotificationType; 
-  title: string; 
-  message: string; 
-  action?: { label: string; onClick: () => void; };
-}) => (
-  <div className="flex items-start gap-3">
-    <span className="text-lg">{icons[type]}</span>
-    <div className="flex-1">
-      <div className="font-semibold text-sm">{title}</div>
-      <div className="text-sm opacity-90 mt-1">{message}</div>
-      {action && (
-        <button
-          onClick={action.onClick}
-          className="mt-2 text-xs underline hover:no-underline"
-        >
-          {action.label}
-        </button>
-      )}
-    </div>
-  </div>
-);
+// Simple notification functions without JSX
 
 // Notification functions
 export const notifications = {
   success: (title: string, message: string, config?: NotificationConfig) => {
-    return toast.custom(
-      (t: Toast) => (
-        <div
-          className={`${
-            t.visible ? 'animate-enter' : 'animate-leave'
-          } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}
-        >
-          <NotificationComponent
-            type="success"
-            title={title}
-            message={message}
-            action={config?.action}
-          />
-        </div>
-      ),
-      {
-        duration: config?.duration || defaultConfig.duration,
-        position: config?.position || defaultConfig.position,
-        style: { ...defaultConfig.style, ...config?.style },
-        className: config?.className,
-      }
-    );
+    return toast.success(`${icons.success} ${title}: ${message}`, {
+      duration: config?.duration || defaultConfig.duration,
+      position: config?.position || defaultConfig.position,
+      style: { ...defaultConfig.style, ...config?.style },
+      className: config?.className,
+    });
   },
 
   error: (title: string, message: string, config?: NotificationConfig) => {
-    return toast.custom(
-      (t: Toast) => (
-        <div
-          className={`${
-            t.visible ? 'animate-enter' : 'animate-leave'
-          } max-w-md w-full bg-red-50 border border-red-200 shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-red-500 ring-opacity-5`}
-        >
-          <NotificationComponent
-            type="error"
-            title={title}
-            message={message}
-            action={config?.action}
-          />
-        </div>
-      ),
-      {
-        duration: config?.duration || defaultConfig.duration,
-        position: config?.position || defaultConfig.position,
-        style: { ...defaultConfig.style, ...config?.style },
-        className: config?.className,
-      }
-    );
+    return toast.error(`${icons.error} ${title}: ${message}`, {
+      duration: config?.duration || defaultConfig.duration,
+      position: config?.position || defaultConfig.position,
+      style: { ...defaultConfig.style, ...config?.style },
+      className: config?.className,
+    });
   },
 
   warning: (title: string, message: string, config?: NotificationConfig) => {
-    return toast.custom(
-      (t: Toast) => (
-        <div
-          className={`${
-            t.visible ? 'animate-enter' : 'animate-leave'
-          } max-w-md w-full bg-yellow-50 border border-yellow-200 shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-yellow-500 ring-opacity-5`}
-        >
-          <NotificationComponent
-            type="warning"
-            title={title}
-            message={message}
-            action={config?.action}
-          />
-        </div>
-      ),
-      {
-        duration: config?.duration || defaultConfig.duration,
-        position: config?.position || defaultConfig.position,
-        style: { ...defaultConfig.style, ...config?.style },
-        className: config?.className,
-      }
-    );
+    return toast(`${icons.warning} ${title}: ${message}`, {
+      duration: config?.duration || defaultConfig.duration,
+      position: config?.position || defaultConfig.position,
+      style: { ...defaultConfig.style, ...config?.style },
+      className: config?.className,
+    });
   },
 
   info: (title: string, message: string, config?: NotificationConfig) => {
-    return toast.custom(
-      (t: Toast) => (
-        <div
-          className={`${
-            t.visible ? 'animate-enter' : 'animate-leave'
-          } max-w-md w-full bg-blue-50 border border-blue-200 shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-blue-500 ring-opacity-5`}
-        >
-          <NotificationComponent
-            type="info"
-            title={title}
-            message={message}
-            action={config?.action}
-          />
-        </div>
-      ),
-      {
-        duration: config?.duration || defaultConfig.duration,
-        position: config?.position || defaultConfig.position,
-        style: { ...defaultConfig.style, ...config?.style },
-        className: config?.className,
-      }
-    );
+    return toast(`${icons.info} ${title}: ${message}`, {
+      duration: config?.duration || defaultConfig.duration,
+      position: config?.position || defaultConfig.position,
+      style: { ...defaultConfig.style, ...config?.style },
+      className: config?.className,
+    });
   },
 
   // Dismiss all notifications
@@ -184,7 +93,7 @@ export const notificationMessages = {
   auth: {
     loginSuccess: 'Welcome back! You have been successfully logged in.',
     loginError: 'Login failed. Please check your credentials and try again.',
-    registerSuccess: 'Account created successfully! Welcome to NoteGPT Dashboard.',
+    registerSuccess: 'Account created successfully! Welcome to Zooys Dashboard.',
     registerError: 'Registration failed. Please check your information and try again.',
     logoutSuccess: 'You have been successfully logged out.',
     logoutError: 'Logout failed. Please try again.',

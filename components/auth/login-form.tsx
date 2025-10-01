@@ -140,7 +140,7 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
             <button
               type="button"
               onClick={onSwitchToRegister}
-              className="text-primary hover:underline font-medium"
+              className="text-primary hover:underline font-semibold text-base"
             >
               Sign up
             </button>

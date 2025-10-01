@@ -97,7 +97,7 @@ export default function AiMathCard() {
         <div className="bg-background border border-border rounded-lg p-4 flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm">
           <p className="text-sm font-medium text-center md:text-left">
             <span className="font-semibold text-indigo-500">
-              NoteGPT AI Math & Homework Extension
+              Zooys AI Math & Homework Extension
             </span>{" "}
             – Crop & solve any question, anytime.
           </p>

@@ -5,6 +5,7 @@ import LangSwitch from "./ui/lang-switch";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "./ui/button";
 import { LogOut, User } from "lucide-react";
+import Link from "next/link";
 
 export default function Topbar() {
   const { user, logout } = useAuth();
@@ -21,9 +22,12 @@ export default function Topbar() {
     <header className="flex justify-between items-center p-4 border-b">
       <div className="flex items-center gap-2">
         <User className="h-5 w-5 text-muted-foreground" />
-        <span className="text-sm font-medium">
+        <Link 
+          href="/profile"
+          className="text-sm font-medium hover:text-primary transition-colors cursor-pointer"
+        >
           Welcome, {user?.name || 'User'}
-        </span>
+        </Link>
       </div>
       
       <div className="flex items-center gap-4">
