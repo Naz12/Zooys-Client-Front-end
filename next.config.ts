@@ -102,14 +102,18 @@ const nextConfig: NextConfig = {
     return config;
   },
 
+  // Server external packages
+  serverExternalPackages: ['axios'],
+
   // Experimental features
   experimental: {
-    // Enable server components
-    serverComponentsExternalPackages: ['axios'],
+    // Enable optimized package imports
+    optimizePackageImports: ['lucide-react'],
   },
 
   // Output configuration
   output: 'standalone',
+  outputFileTracingRoot: __dirname,
 
   // Compression
   compress: true,

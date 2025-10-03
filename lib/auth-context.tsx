@@ -129,15 +129,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const token = localStorage.getItem('auth_token');
         const userData = localStorage.getItem('auth_user');
+        const authCache = localStorage.getItem('auth_cache');
+        
+        // Check if we have cached auth data that's still valid
+        if (authCache) {
+          const { timestamp, isAuthenticated } = JSON.parse(authCache);
+          const cacheAge = Date.now() - timestamp;
+          
+          // Use cache if it's less than 5 minutes old
+          if (cacheAge < 5 * 60 * 1000 && isAuthenticated && token && userData) {
+            const user = JSON.parse(userData);
+            dispatch({ type: 'AUTH_RESTORE', payload: { user, token } });
+            return; // Skip API validation for cached data
+          }
+        }
         
         if (token && userData) {
           const user = JSON.parse(userData);
           dispatch({ type: 'AUTH_RESTORE', payload: { user, token } });
+          
+          // Cache the auth state
+          localStorage.setItem('auth_cache', JSON.stringify({
+            timestamp: Date.now(),
+            isAuthenticated: true
+          }));
         }
       } catch (error) {
         console.error('Failed to restore auth state:', error);
         localStorage.removeItem('auth_token');
         localStorage.removeItem('auth_user');
+        localStorage.removeItem('auth_cache');
       }
     };
 

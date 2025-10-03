@@ -188,6 +188,10 @@ export const API_ENDPOINTS = {
   // AI Chat
   CHAT: '/api/chat',
   CHAT_HISTORY: '/api/chat/history',
+  
+  // Chat Sessions
+  CHAT_SESSIONS: '/api/chat/sessions',
+  CHAT_CREATE_AND_CHAT: '/api/chat/create-and-chat',
 } as const;
 
 // Type definitions for API responses
@@ -347,6 +351,79 @@ export interface UploadStatusResponse {
   created_at: string;
 }
 
+// Chat Session types
+export interface ChatSession {
+  id: number;
+  name: string;
+  description?: string;
+  is_active: boolean;
+  message_count: number;
+  last_activity: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessage {
+  id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  metadata?: {
+    tokens_used?: number;
+    processing_time?: string;
+  };
+  created_at: string;
+}
+
+export interface CreateSessionRequest {
+  name: string;
+  description?: string;
+}
+
+export interface CreateAndChatRequest {
+  message: string;
+  name?: string;
+  description?: string;
+}
+
+export interface CreateAndChatResponse {
+  response: string;
+  session_id: number;
+  model_used: string;
+  timestamp: string;
+  metadata: {
+    tokens_used: number;
+    processing_time: string;
+  };
+}
+
+export interface SessionMessagesResponse {
+  messages: ChatMessage[];
+  pagination: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
+
+export interface SendMessageRequest {
+  content: string;
+  conversation_history?: Array<{
+    role: 'user' | 'assistant';
+    content: string;
+  }>;
+}
+
+export interface SendMessageResponse {
+  user_message: ChatMessage;
+  ai_message: ChatMessage;
+  session: {
+    id: number;
+    name: string;
+    message_count: number;
+  };
+}
+
 // New summarization API functions
 export const summarizeApi = {
   // Unified summarization endpoint
@@ -362,4 +439,51 @@ export const summarizeApi = {
   // Check upload status
   getUploadStatus: (uploadId: number) =>
     apiClient.get<UploadStatusResponse>(`${API_ENDPOINTS.UPLOAD_STATUS}/${uploadId}/status`),
+};
+
+// Chat Session API functions
+export const chatSessionApi = {
+  // Get all sessions
+  getSessions: (page: number = 1, perPage: number = 20) =>
+    apiClient.get<{ sessions: ChatSession[]; pagination: any }>(`${API_ENDPOINTS.CHAT_SESSIONS}?page=${page}&per_page=${perPage}`),
+  
+  // Create new session
+  createSession: (request: CreateSessionRequest) =>
+    apiClient.post<{ session: ChatSession }>(API_ENDPOINTS.CHAT_SESSIONS, request),
+  
+  // Create session and start chatting
+  createAndChat: (request: CreateAndChatRequest) =>
+    apiClient.post<CreateAndChatResponse>(API_ENDPOINTS.CHAT_CREATE_AND_CHAT, request),
+  
+  // Get specific session
+  getSession: (sessionId: number) =>
+    apiClient.get<{ session: ChatSession & { messages: ChatMessage[] } }>(`${API_ENDPOINTS.CHAT_SESSIONS}/${sessionId}`),
+  
+  // Update session
+  updateSession: (sessionId: number, request: CreateSessionRequest) =>
+    apiClient.put<{ session: ChatSession }>(`${API_ENDPOINTS.CHAT_SESSIONS}/${sessionId}`, request),
+  
+  // Delete session
+  deleteSession: (sessionId: number) =>
+    apiClient.delete<{ message: string }>(`${API_ENDPOINTS.CHAT_SESSIONS}/${sessionId}`),
+  
+  // Archive session
+  archiveSession: (sessionId: number) =>
+    apiClient.post<{ message: string }>(`${API_ENDPOINTS.CHAT_SESSIONS}/${sessionId}/archive`),
+  
+  // Restore session
+  restoreSession: (sessionId: number) =>
+    apiClient.post<{ message: string }>(`${API_ENDPOINTS.CHAT_SESSIONS}/${sessionId}/restore`),
+  
+  // Send message to session
+  sendMessage: (sessionId: number, request: SendMessageRequest) =>
+    apiClient.post<SendMessageResponse>(`${API_ENDPOINTS.CHAT_SESSIONS}/${sessionId}/messages`, request),
+  
+  // Get session messages
+  getSessionMessages: (sessionId: number, page: number = 1, perPage: number = 50) =>
+    apiClient.get<SessionMessagesResponse>(`${API_ENDPOINTS.CHAT_SESSIONS}/${sessionId}/messages?page=${page}&per_page=${perPage}`),
+  
+  // Get conversation history
+  getConversationHistory: (sessionId: number) =>
+    apiClient.get<{ session_id: number; session_name: string; conversation: ChatMessage[]; total_messages: number }>(`${API_ENDPOINTS.CHAT_SESSIONS}/${sessionId}/history`),
 };

@@ -5,33 +5,32 @@ import {
   Youtube,
   MessageSquare,
   FileText,
-  Presentation,
+  PenTool,
   Calculator,
-  Layers,
   BookOpen,
+  Network,
   User,
   CreditCard,
+  Brain,
 } from "lucide-react";
-import { useTabState, type TabValue } from "@/lib/tab-context";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { memo } from "react";
 
-export default function Sidebar() {
-  const { activeTab, setActiveTab } = useTabState();
+function Sidebar() {
+  const pathname = usePathname();
 
   const navItems = [
-    { label: "Home", tab: "summary" as TabValue, icon: <Home size={18} /> },
-    { label: "AI YouTube", tab: "youtube" as TabValue, icon: <Youtube size={18} /> },
-    { label: "AI Chat", tab: "chat" as TabValue, icon: <MessageSquare size={18} /> },
-    { label: "AI PDF", tab: "pdf" as TabValue, icon: <FileText size={18} /> },
-    { label: "AI Presentation", tab: "presentation" as TabValue, icon: <Presentation size={18} /> },
-    { label: "AI Math", tab: "math" as TabValue, icon: <Calculator size={18} /> },
-    { label: "AI Flashcards", tab: "flashcards" as TabValue, icon: <Layers size={18} /> },
-    { label: "AI Book Library", tab: "diagram" as TabValue, icon: <BookOpen size={18} /> },
+    { label: "Dashboard", href: "/", icon: <Home size={18} /> },
+    { label: "AI Summarizer", href: "/summarizer", icon: <Brain size={18} /> },
+    { label: "YouTube Summarizer", href: "/youtube-summarizer", icon: <Youtube size={18} /> },
+    { label: "PDF Summarizer", href: "/pdf-summarizer", icon: <FileText size={18} /> },
+    { label: "AI Chat", href: "/chat", icon: <MessageSquare size={18} /> },
+    { label: "AI Writer", href: "/writer", icon: <PenTool size={18} /> },
+    { label: "AI Math Solver", href: "/math-solver", icon: <Calculator size={18} /> },
+    { label: "AI Flashcards", href: "/flashcards", icon: <BookOpen size={18} /> },
+    { label: "AI Diagrams", href: "/diagrams", icon: <Network size={18} /> },
   ];
-
-  const handleTabClick = (tab: TabValue) => {
-    setActiveTab(tab);
-  };
 
   return (
     <aside className="bg-background border-r border-border w-64 min-h-screen p-4 flex flex-col justify-between">
@@ -44,14 +43,15 @@ export default function Sidebar() {
         {/* Navigation */}
         <nav className="space-y-2">
           {navItems.map((item) => {
-            const isActive = activeTab === item.tab;
+            const isActive = pathname === item.href;
             return (
-              <button
+              <Link
                 key={item.label}
-                onClick={() => handleTabClick(item.tab)}
+                href={item.href}
+                prefetch={true}
                 className={`
                   relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium
-                  overflow-hidden group transition-all duration-300 w-full text-left
+                  overflow-hidden group transition-all duration-200 w-full text-left
                   ${isActive 
                     ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white' 
                     : 'hover:bg-gradient-to-r hover:from-indigo-500 hover:to-purple-500 hover:opacity-80'
@@ -72,7 +72,7 @@ export default function Sidebar() {
                   {item.icon}
                   {item.label}
                 </span>
-              </button>
+              </Link>
             );
           })}
         </nav>
@@ -97,7 +97,9 @@ export default function Sidebar() {
       </div>
 
       {/* Footer */}
-      <div className="text-xs text-muted-foreground mt-6">© 2025 Zooys</div>
+      <div className="text-xs text-muted-foreground mt-6">© 2025 Zooys      </div>
     </aside>
   );
 }
+
+export default memo(Sidebar);
