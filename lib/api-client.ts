@@ -180,6 +180,11 @@ export const API_ENDPOINTS = {
   FLASHCARDS_GENERATE: '/api/flashcards/generate',
   DIAGRAM_GENERATE: '/api/diagram/generate',
   
+  // Unified Summarization
+  SUMMARIZE: '/api/summarize',
+  UPLOAD_FILE: '/api/summarize/upload',
+  UPLOAD_STATUS: '/api/summarize/upload',
+  
   // AI Chat
   CHAT: '/api/chat',
   CHAT_HISTORY: '/api/chat/history',
@@ -272,4 +277,89 @@ export const chatApi = {
   
   getChatHistory: (perPage: number = 10, page: number = 1) =>
     apiClient.get<ChatHistoryResponse>(`${API_ENDPOINTS.CHAT_HISTORY}?per_page=${perPage}&page=${page}`),
+};
+
+// New summarization API types
+export interface SummarizeRequest {
+  content_type: 'text' | 'link' | 'pdf' | 'image' | 'audio' | 'video';
+  source: {
+    type: 'text' | 'url' | 'file';
+    data: string;
+  };
+  options: {
+    mode: 'detailed' | 'brief';
+    language: string;
+    focus?: 'summary' | 'analysis' | 'key_points';
+    password?: string;
+  };
+}
+
+export interface SummarizeResponse {
+  summary?: string;
+  error?: string;
+  metadata: {
+    content_type: string;
+    processing_time: string;
+    tokens_used: number;
+    confidence: number;
+  };
+  source_info: {
+    word_count?: number;
+    character_count?: number;
+    duration?: string;
+    file_size?: string;
+    audio_quality?: string;
+    video_quality?: string;
+    transcription?: string;
+    // PDF specific
+    pages?: number;
+    title?: string;
+    author?: string;
+    created_date?: string;
+    subject?: string;
+    password_protected?: boolean;
+    // Link specific
+    url?: string;
+    title?: string;
+    description?: string;
+    author?: string;
+    published_date?: string;
+    // Image specific
+    image_resolution?: string;
+    file_format?: string;
+  };
+}
+
+export interface UploadResponse {
+  upload_id: number;
+  filename: string;
+  file_path: string;
+  file_size: number;
+  content_type: string;
+  status: string;
+}
+
+export interface UploadStatusResponse {
+  upload_id: number;
+  status: string;
+  file_type: string;
+  file_size: number;
+  created_at: string;
+}
+
+// New summarization API functions
+export const summarizeApi = {
+  // Unified summarization endpoint
+  summarize: (request: SummarizeRequest) =>
+    apiClient.post<SummarizeResponse>(API_ENDPOINTS.SUMMARIZE, request),
+  
+  // File upload
+  uploadFile: (file: File, contentType: string) =>
+    apiClient.uploadFile<UploadResponse>(API_ENDPOINTS.UPLOAD_FILE, file, {
+      content_type: contentType,
+    }),
+  
+  // Check upload status
+  getUploadStatus: (uploadId: number) =>
+    apiClient.get<UploadStatusResponse>(`${API_ENDPOINTS.UPLOAD_STATUS}/${uploadId}/status`),
 };

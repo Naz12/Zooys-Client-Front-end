@@ -1,6 +1,8 @@
 ---
 alwaysApply: true
 ---
+Follow mobile first approach for everything
+
 Reuse existing code/components before creating new ones.
 
 Keep components small, focused, and reusable.
