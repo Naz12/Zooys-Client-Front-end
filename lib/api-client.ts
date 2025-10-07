@@ -24,8 +24,8 @@ import type {
   PDFSummaryCreateResponse
 } from './types/api';
 
-// API base URL - Hardcoded to fix double /api issue
-const API_BASE_URL = 'http://localhost:8000';
+// API base URL - Include /api prefix to match backend
+const API_BASE_URL = 'http://localhost:8000/api';
 
 // API client class
 export class ApiClient {
@@ -62,8 +62,11 @@ export class ApiClient {
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Origin': 'http://localhost:3000',
         ...options.headers,
       },
+      redirect: 'manual', // Prevent automatic redirects on 401/403 responses
       ...options,
     };
 
@@ -86,7 +89,16 @@ export class ApiClient {
     }
 
     try {
+      console.log(`Making request to: ${url}`);
+      console.log(`Request config:`, config);
+      
       const response = await fetch(url, config);
+      
+      // Handle redirect responses (status 0 indicates a redirect was blocked)
+      // Only treat as redirect if it's actually a redirect, not a 401/403 response
+      if (response.status === 0 || (response.type === 'opaqueredirect' && response.status !== 401 && response.status !== 403)) {
+        throw new Error('Request was redirected. This usually indicates a network or CORS issue.');
+      }
       
       if (!response.ok) {
         let errorData;
@@ -120,22 +132,50 @@ export class ApiClient {
           };
         }
         
-        console.error('API Error Response:', {
-          status: response.status,
-          statusText: response.statusText,
-          url: url,
-          errorData: errorData,
-          rawResponse: responseText,
-          headers: Object.fromEntries(response.headers.entries())
-        });
+        // Create user-friendly error message
+        let userMessage = 'Something went wrong. Please try again.';
         
-        // Log the error data separately for better visibility
-        console.error('Backend Error Details:', errorData);
+        if (response.status === 404) {
+          userMessage = 'The requested resource was not found. Please check if the service is available.';
+        } else if (response.status === 401) {
+          userMessage = 'Authentication required. Please log in to access this feature.';
+        } else if (response.status === 403) {
+          userMessage = 'You do not have permission to access this resource.';
+        } else if (response.status === 500) {
+          userMessage = 'Server error occurred. Please try again later.';
+        } else if (response.status >= 400 && response.status < 500) {
+          userMessage = 'Invalid request. Please check your input and try again.';
+        } else if (response.status >= 500) {
+          userMessage = 'Server is temporarily unavailable. Please try again later.';
+        }
         
-        const error = new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        // Log detailed error information for debugging (only in development)
+        if (process.env.NODE_ENV === 'development') {
+          // Only log if we have meaningful data
+          if (response.status || response.statusText || url) {
+            const errorInfo = {
+              status: response.status,
+              statusText: response.statusText,
+              url: url,
+              errorData: errorData,
+              rawResponse: responseText,
+              headers: Object.fromEntries(response.headers.entries())
+            };
+            console.error('API Error Response:', errorInfo);
+          }
+          
+          // Log the error data separately for better visibility (only if not empty)
+          // Disabled to prevent empty object logging
+          // if (errorData && Object.keys(errorData).length > 0) {
+          //   console.error('Backend Error Details:', errorData);
+          // }
+        }
+        
+        const error = new Error(userMessage);
         (error as any).status = response.status;
         (error as any).response = errorData;
         (error as any).rawResponse = responseText;
+        (error as any).userMessage = userMessage;
         throw error;
       }
 
@@ -191,6 +231,7 @@ export class ApiClient {
     const config: RequestInit = {
       method: 'POST',
       body: formData,
+      redirect: 'manual', // Prevent automatic redirects on 401/403 responses
     };
 
     if (token) {
@@ -201,6 +242,12 @@ export class ApiClient {
 
     try {
       const response = await fetch(url, config);
+      
+      // Handle redirect responses (status 0 indicates a redirect was blocked)
+      // Only treat as redirect if it's actually a redirect, not a 401/403 response
+      if (response.status === 0 || (response.type === 'opaqueredirect' && response.status !== 401 && response.status !== 403)) {
+        throw new Error('Request was redirected. This usually indicates a network or CORS issue.');
+      }
       
       if (!response.ok) {
         let errorData;
@@ -234,22 +281,50 @@ export class ApiClient {
           };
         }
         
-        console.error('API Error Response:', {
-          status: response.status,
-          statusText: response.statusText,
-          url: url,
-          errorData: errorData,
-          rawResponse: responseText,
-          headers: Object.fromEntries(response.headers.entries())
-        });
+        // Create user-friendly error message
+        let userMessage = 'Something went wrong. Please try again.';
         
-        // Log the error data separately for better visibility
-        console.error('Backend Error Details:', errorData);
+        if (response.status === 404) {
+          userMessage = 'The requested resource was not found. Please check if the service is available.';
+        } else if (response.status === 401) {
+          userMessage = 'Authentication required. Please log in to access this feature.';
+        } else if (response.status === 403) {
+          userMessage = 'You do not have permission to access this resource.';
+        } else if (response.status === 500) {
+          userMessage = 'Server error occurred. Please try again later.';
+        } else if (response.status >= 400 && response.status < 500) {
+          userMessage = 'Invalid request. Please check your input and try again.';
+        } else if (response.status >= 500) {
+          userMessage = 'Server is temporarily unavailable. Please try again later.';
+        }
         
-        const error = new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        // Log detailed error information for debugging (only in development)
+        if (process.env.NODE_ENV === 'development') {
+          // Only log if we have meaningful data
+          if (response.status || response.statusText || url) {
+            const errorInfo = {
+              status: response.status,
+              statusText: response.statusText,
+              url: url,
+              errorData: errorData,
+              rawResponse: responseText,
+              headers: Object.fromEntries(response.headers.entries())
+            };
+            console.error('API Error Response:', errorInfo);
+          }
+          
+          // Log the error data separately for better visibility (only if not empty)
+          // Disabled to prevent empty object logging
+          // if (errorData && Object.keys(errorData).length > 0) {
+          //   console.error('Backend Error Details:', errorData);
+          // }
+        }
+        
+        const error = new Error(userMessage);
         (error as any).status = response.status;
         (error as any).response = errorData;
         (error as any).rawResponse = responseText;
+        (error as any).userMessage = userMessage;
         throw error;
       }
 
@@ -269,55 +344,55 @@ export const apiClient = new ApiClient();
 // API endpoints
 export const API_ENDPOINTS = {
   // Authentication
-  LOGIN: '/api/login',
-  REGISTER: '/api/register',
-  LOGOUT: '/api/logout',
-  USER: '/api/user',
+  LOGIN: '/login',
+  REGISTER: '/register',
+  LOGOUT: '/logout',
+  USER: '/user',
   
   // Subscription
-  PLANS: '/api/plans',
-  SUBSCRIPTION: '/api/subscription',
-  SUBSCRIPTION_HISTORY: '/api/subscription/history',
-  USAGE: '/api/usage',
+  PLANS: '/plans',
+  SUBSCRIPTION: '/subscription',
+  SUBSCRIPTION_HISTORY: '/subscription/history',
+  USAGE: '/usage',
   
   // Payment
-  CHECKOUT: '/api/checkout',
+  CHECKOUT: '/checkout',
   
   // AI Tools
-  YOUTUBE_SUMMARIZE: '/api/youtube/summarize',
-  PDF_SUMMARIZE: '/api/pdf/summarize',
-  WRITER_RUN: '/api/writer/run',
-  MATH_SOLVE: '/api/math/solve',
-  FLASHCARDS_GENERATE: '/api/flashcards/generate',
-  DIAGRAM_GENERATE: '/api/diagram/generate',
+  YOUTUBE_SUMMARIZE: '/youtube/summarize',
+  PDF_SUMMARIZE: '/pdf/summarize',
+  WRITER_RUN: '/writer/run',
+  MATH_SOLVE: '/math/solve',
+  FLASHCARDS_GENERATE: '/flashcards/generate',
+  DIAGRAM_GENERATE: '/diagram/generate',
   
   // Flashcard Management
-  FLASHCARDS: '/api/flashcards',
-  FLASHCARDS_PUBLIC: '/api/flashcards/public',
+  FLASHCARDS: '/flashcards',
+  FLASHCARDS_PUBLIC: '/flashcards/public',
   
   // File Management
-  FILES_UPLOAD: '/api/files/upload',
-  FILES: '/api/files',
+  FILES_UPLOAD: '/files/upload',
+  FILES: '/files',
   
   // AI Results Management
-  AI_RESULTS: '/api/ai-results',
-  AI_RESULTS_STATS: '/api/ai-results/stats',
+  AI_RESULTS: '/ai-results',
+  AI_RESULTS_STATS: '/ai-results/stats',
   
   // PDF Summary Management
-  PDF_SUMMARIES: '/api/pdf-summaries',
+  PDF_SUMMARIES: '/pdf-summaries',
   
   // Unified Summarization
-  SUMMARIZE: '/api/summarize',
-  UPLOAD_FILE: '/api/summarize/upload',
-  UPLOAD_STATUS: '/api/summarize/upload',
+  SUMMARIZE: '/summarize',
+  UPLOAD_FILE: '/summarize/upload',
+  UPLOAD_STATUS: '/summarize/upload',
   
   // AI Chat
-  CHAT: '/api/chat',
-  CHAT_HISTORY: '/api/chat/history',
+  CHAT: '/chat',
+  CHAT_HISTORY: '/chat/history',
   
   // Chat Sessions
-  CHAT_SESSIONS: '/api/chat/sessions',
-  CHAT_CREATE_AND_CHAT: '/api/chat/create-and-chat',
+  CHAT_SESSIONS: '/chat/sessions',
+  CHAT_CREATE_AND_CHAT: '/chat/create-and-chat',
 } as const;
 
 // Type definitions for API responses
@@ -699,7 +774,7 @@ export const fileApi = {
       };
       can_upload: boolean;
       message: string;
-    }>('/api/summarize/validate', file, { content_type: contentType });
+    }>('/summarize/validate', file, { content_type: contentType });
   },
 
   // Upload file using original endpoint (more reliable)
@@ -723,7 +798,7 @@ export const fileApi = {
         created_at: string;
       };
       file_url: string;
-    }>('/api/files/upload', file, metadata);
+    }>('/files/upload', file, metadata);
   },
   
   // Get user's files
@@ -752,7 +827,7 @@ export const fileApi = {
         per_page: number;
         total: number;
       };
-    }>(`/api/files?${params}`);
+    }>(`/files?${params}`);
   },
   
   // Get specific file
@@ -774,7 +849,7 @@ export const fileApi = {
         };
         created_at: string;
       };
-    }>(`/api/files/${id}`),
+    }>(`/files/${id}`),
   
   // Get file content
   getFileContent: (id: number) =>
@@ -789,11 +864,11 @@ export const fileApi = {
         }>;
         total_pages: number;
       };
-    }>(`/api/files/${id}/content`),
+    }>(`/files/${id}/content`),
   
   // Delete file
   deleteFile: (id: number) =>
-    apiClient.delete<{ message: string }>(`/api/files/${id}`),
+    apiClient.delete<{ message: string }>(`/files/${id}`),
 };
 
 // AI Results Management API functions
@@ -825,7 +900,7 @@ export const aiResultsApi = {
         per_page: number;
         total: number;
       };
-    }>(`/api/ai-results?${params}`);
+    }>(`/ai-results?${params}`);
   },
   
   // Get specific AI result
@@ -849,7 +924,7 @@ export const aiResultsApi = {
         metadata: any;
         created_at: string;
       };
-    }>(`/api/ai-results/${id}`),
+    }>(`/ai-results/${id}`),
   
   // Update AI result
   updateResult: (id: number, data: { title?: string; description?: string; metadata?: any }) =>
@@ -861,11 +936,11 @@ export const aiResultsApi = {
         description: string;
         updated_at: string;
       };
-    }>(`/api/ai-results/${id}`, data),
+    }>(`/ai-results/${id}`, data),
   
   // Delete AI result
   deleteResult: (id: number) =>
-    apiClient.delete<{ message: string }>(`/api/ai-results/${id}`),
+    apiClient.delete<{ message: string }>(`/ai-results/${id}`),
   
   // Get AI results statistics
   getStats: () =>
@@ -880,7 +955,7 @@ export const aiResultsApi = {
           created_at: string;
         }>;
       };
-    }>('/api/ai-results/stats'),
+    }>('/ai-results/stats'),
 };
 
 // PDF Summary API functions

@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math API Debug Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Math API Debug Tool</h1>
+        <p>This tool helps you debug why you're getting mock data instead of real API responses.</p>
+        
+        <div class="test-section">
+            <h3>🔍 Step 1: Test Backend Connection</h3>
+            <p>Check if the Laravel backend is running and accessible.</p>
+            <button onclick="testBackendConnection()">Test Backend Connection</button>
+            <div id="backendResult" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔐 Step 2: Test Authentication</h3>
+            <p>Check if you have a valid authentication token.</p>
+            <button onclick="testAuthentication()">Test Authentication</button>
+            <div id="authResult" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🌐 Step 3: Test CORS</h3>
+            <p>Check if CORS is properly configured.</p>
+            <button onclick="testCORS()">Test CORS</button>
+            <div id="corsResult" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔧 Step 4: Test Math API Endpoint</h3>
+            <p>Test the actual math API endpoint with your problem.</p>
+            <textarea id="problemText" placeholder="Enter your math problem here..." rows="3">2+5</textarea>
+            <button onclick="testMathAPI()">Test Math API</button>
+            <div id="mathApiResult" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Step 5: Compare Mock vs Real API</h3>
+            <p>Compare the mock response with the real API response.</p>
+            <button onclick="compareResponses()">Compare Responses</button>
+            <div id="compareResult" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🚀 Step 6: Run All Tests</h3>
+            <p>Run all tests to get a comprehensive diagnosis.</p>
+            <button onclick="runAllTests()" style="background: #28a745;">Run All Tests</button>
+            <div id="allTestsResult" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000/api';
+        
+        function showResult(elementId, content, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            element.className = `result ${type}`;
+            element.textContent = content;
+        }
+
+        async function testBackendConnection() {
+            showResult('backendResult', 'Testing backend connection...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/math/solve`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'no-token'}`
+                    },
+                    body: JSON.stringify({
+                        problem_text: '2+5',
+                        subject_area: 'general',
+                        difficulty_level: 'intermediate',
+                        problem_type: 'text'
+                    }),
+                    redirect: 'manual'
+                });
+                
+                const result = `Backend Connection Test:
+Status: ${response.status}
+Type: ${response.type}
+URL: ${response.url}
+Headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2)}
+
+${response.status === 0 ? '❌ Request was redirected - CORS/Network issue' : 
+  response.ok ? '✅ Backend is working!' : 
+  `❌ Backend error: ${response.status}`}`;
+                
+                showResult('backendResult', result, response.ok ? 'success' : 'error');
+            } catch (error) {
+                showResult('backendResult', `❌ Connection failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAuthentication() {
+            const token = localStorage.getItem('auth_token');
+            const result = `Authentication Test:
+Token Present: ${token ? 'Yes' : 'No'}
+Token Length: ${token ? token.length : 0}
+Token Preview: ${token ? token.substring(0, 20) + '...' : 'None'}
+
+${token ? '✅ Token is present' : '❌ No authentication token found'}`;
+            
+            showResult('authResult', result, token ? 'success' : 'warning');
+        }
+
+        async function testCORS() {
+            showResult('corsResult', 'Testing CORS configuration...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/math/solve`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': 'http://localhost:3000',
+                        'Access-Control-Request-Method': 'POST',
+                        'Access-Control-Request-Headers': 'Content-Type, Authorization'
+                    }
+                });
+                
+                const result = `CORS Test:
+Status: ${response.status}
+Access-Control-Allow-Origin: ${response.headers.get('Access-Control-Allow-Origin')}
+Access-Control-Allow-Methods: ${response.headers.get('Access-Control-Allow-Methods')}
+Access-Control-Allow-Headers: ${response.headers.get('Access-Control-Allow-Headers')}
+
+${response.ok ? '✅ CORS is working' : '❌ CORS configuration issue'}`;
+                
+                showResult('corsResult', result, response.ok ? 'success' : 'error');
+            } catch (error) {
+                showResult('corsResult', `❌ CORS test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testMathAPI() {
+            const problemText = document.getElementById('problemText').value || '2+5';
+            showResult('mathApiResult', 'Testing math API...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/math/solve`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'no-token'}`
+                    },
+                    body: JSON.stringify({
+                        problem_text: problemText,
+                        subject_area: 'general',
+                        difficulty_level: 'intermediate',
+                        problem_type: 'text'
+                    }),
+                    redirect: 'manual'
+                });
+                
+                let result = `Math API Test:
+Problem: "${problemText}"
+Status: ${response.status}
+Type: ${response.type}`;
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    result += `\n\n✅ Real API Response:
+${JSON.stringify(data, null, 2)}`;
+                    showResult('mathApiResult', result, 'success');
+                } else {
+                    const errorText = await response.text();
+                    result += `\n\n❌ API Error:
+${errorText}`;
+                    showResult('mathApiResult', result, 'error');
+                }
+            } catch (error) {
+                showResult('mathApiResult', `❌ Math API test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function compareResponses() {
+            showResult('compareResult', 'Comparing mock vs real API...', 'info');
+            
+            // Mock response (what you're currently getting)
+            const mockResponse = {
+                math_problem: {
+                    id: 1,
+                    problem_text: "2+5",
+                    subject_area: "general",
+                    difficulty_level: "intermediate",
+                    created_at: new Date().toISOString()
+                },
+                math_solution: {
+                    id: 1,
+                    solution_method: "AI-powered solution",
+                    step_by_step_solution: "Step 1: Analyze the problem: 2+5\nStep 2: Apply appropriate mathematical method\nStep 3: Calculate the result",
+                    final_answer: "Solution will be calculated based on the problem",
+                    explanation: "This is a mock solution generated for testing purposes.",
+                    verification: "The solution has been verified using mathematical principles.",
+                    created_at: new Date().toISOString()
+                },
+                ai_result: {
+                    id: 1,
+                    title: "Math Problem Solution",
+                    file_url: "",
+                    created_at: new Date().toISOString()
+                }
+            };
+            
+            let result = `Response Comparison:
+
+📋 Mock Response (what you're getting):
+${JSON.stringify(mockResponse, null, 2)}
+
+🔍 Real API Response:`;
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/math/solve`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'no-token'}`
+                    },
+                    body: JSON.stringify({
+                        problem_text: '2+5',
+                        subject_area: 'general',
+                        difficulty_level: 'intermediate',
+                        problem_type: 'text'
+                    }),
+                    redirect: 'manual'
+                });
+                
+                if (response.ok) {
+                    const realData = await response.json();
+                    result += `\n${JSON.stringify(realData, null, 2)}`;
+                    showResult('compareResult', result, 'success');
+                } else {
+                    result += `\n❌ Real API failed: ${response.status}`;
+                    showResult('compareResult', result, 'error');
+                }
+            } catch (error) {
+                result += `\n❌ Real API test failed: ${error.message}`;
+                showResult('compareResult', result, 'error');
+            }
+        }
+
+        async function runAllTests() {
+            showResult('allTestsResult', 'Running all tests...', 'info');
+            
+            let results = [];
+            
+            // Test 1: Backend Connection
+            try {
+                const response = await fetch(`${API_BASE_URL}/math/solve`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('auth_token') || 'no-token'}`
+                    },
+                    body: JSON.stringify({
+                        problem_text: '2+5',
+                        subject_area: 'general',
+                        difficulty_level: 'intermediate',
+                        problem_type: 'text'
+                    }),
+                    redirect: 'manual'
+                });
+                
+                results.push(`Backend Connection: ${response.ok ? '✅ Working' : `❌ Failed (${response.status})`}`);
+            } catch (error) {
+                results.push(`Backend Connection: ❌ Failed (${error.message})`);
+            }
+            
+            // Test 2: Authentication
+            const token = localStorage.getItem('auth_token');
+            results.push(`Authentication: ${token ? '✅ Token Present' : '❌ No Token'}`);
+            
+            // Test 3: CORS
+            try {
+                const corsResponse = await fetch(`${API_BASE_URL}/math/solve`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': 'http://localhost:3000',
+                        'Access-Control-Request-Method': 'POST',
+                        'Access-Control-Request-Headers': 'Content-Type, Authorization'
+                    }
+                });
+                results.push(`CORS: ${corsResponse.ok ? '✅ Working' : '❌ Failed'}`);
+            } catch (error) {
+                results.push(`CORS: ❌ Failed (${error.message})`);
+            }
+            
+            const result = `All Tests Results:
+==================
+${results.join('\n')}
+
+🔧 Troubleshooting:
+==================
+${!token ? '1. 🔐 Log in to get an authentication token\n' : ''}2. 🚨 Make sure Laravel backend is running: php artisan serve --port=8000
+3. 🌐 Check CORS configuration in Laravel
+4. 🔧 Implement math API endpoints in Laravel
+5. 📊 Check browser console for detailed errors`;
+            
+            showResult('allTestsResult', result, 'info');
+        }
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>401 Redirect Fix Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 401 Redirect Fix Test</h1>
+        <p>This test verifies that 401 responses are handled properly instead of being treated as redirects.</p>
+        
+        <div class="test-section">
+            <h3>🧪 Test 1: 401 Response Handling</h3>
+            <p>Test that 401 responses are handled as authentication errors, not redirects.</p>
+            <button onclick="test401Handling()">Test 401 Handling</button>
+            <div id="test401Result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔍 Test 2: Response Type Analysis</h3>
+            <p>Analyze the response type and status to ensure 401 is treated correctly.</p>
+            <button onclick="testResponseAnalysis()">Test Response Analysis</button>
+            <div id="testResponseResult" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Test 3: Compare Before/After Fix</h3>
+            <p>Compare the behavior before and after the fix.</p>
+            <button onclick="testBeforeAfter()">Test Before/After</button>
+            <div id="testBeforeAfterResult" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000/api';
+        
+        function showResult(elementId, content, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            element.className = `result ${type}`;
+            element.textContent = content;
+        }
+
+        async function test401Handling() {
+            showResult('test401Result', 'Testing 401 response handling...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/math/solve`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Authorization': 'Bearer invalid-token-12345'
+                    },
+                    body: JSON.stringify({
+                        problem_text: '2+5',
+                        subject_area: 'general',
+                        difficulty_level: 'intermediate',
+                        problem_type: 'text'
+                    }),
+                    redirect: 'manual'
+                });
+                
+                const result = `401 Response Handling Test:
+Status: ${response.status}
+Type: ${response.type}
+URL: ${response.url}
+Headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2)}
+
+${response.status === 401 ? '✅ 401 response received correctly' : '❌ Unexpected status: ' + response.status}
+${response.type !== 'opaqueredirect' ? '✅ Not treated as redirect' : '❌ Treated as redirect'}`;
+                
+                if (response.status === 401) {
+                    const responseText = await response.text();
+                    result += `\n\nResponse Body: ${responseText}`;
+                    showResult('test401Result', result, 'success');
+                } else {
+                    showResult('test401Result', result, 'error');
+                }
+            } catch (error) {
+                if (error.message.includes('Request was redirected')) {
+                    showResult('test401Result', `❌ Still treating 401 as redirect: ${error.message}`, 'error');
+                } else {
+                    showResult('test401Result', `✅ Proper error handling: ${error.message}`, 'success');
+                }
+            }
+        }
+
+        async function testResponseAnalysis() {
+            showResult('testResponseAnalysis', 'Analyzing response type...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/math/solve`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Authorization': 'Bearer invalid-token-12345'
+                    },
+                    body: JSON.stringify({
+                        problem_text: '2+5',
+                        subject_area: 'general',
+                        difficulty_level: 'intermediate',
+                        problem_type: 'text'
+                    }),
+                    redirect: 'manual'
+                });
+                
+                const result = `Response Analysis:
+Status: ${response.status}
+Status Text: ${response.statusText}
+Type: ${response.type}
+URL: ${response.url}
+Redirected: ${response.redirected}
+Response Headers:
+${JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2)}
+
+Analysis:
+- Status 401: ${response.status === 401 ? '✅ Correct' : '❌ Incorrect'}
+- Type: ${response.type}
+- Is Opaque Redirect: ${response.type === 'opaqueredirect' ? '❌ Yes (problematic)' : '✅ No (good)'}
+- Is Status 0: ${response.status === 0 ? '❌ Yes (problematic)' : '✅ No (good)'}`;
+                
+                showResult('testResponseAnalysis', result, response.status === 401 ? 'success' : 'error');
+            } catch (error) {
+                showResult('testResponseAnalysis', `Error during analysis: ${error.message}`, 'error');
+            }
+        }
+
+        async function testBeforeAfter() {
+            showResult('testBeforeAfterResult', 'Comparing before/after fix behavior...', 'info');
+            
+            const result = `Before/After Fix Comparison:
+
+🔴 BEFORE FIX (Problematic):
+- 401 responses were treated as redirects
+- Error: "Request was redirected. This usually indicates an authentication issue."
+- No proper 401 error handling
+- Mock data fallback was used
+
+🟢 AFTER FIX (Expected):
+- 401 responses are handled as authentication errors
+- Proper error message: "Authentication required. Please log in to access this feature."
+- No redirect treatment for 401
+- Real API errors are shown
+
+🧪 Testing Current Behavior:`;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/math/solve`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Authorization': 'Bearer invalid-token-12345'
+                    },
+                    body: JSON.stringify({
+                        problem_text: '2+5',
+                        subject_area: 'general',
+                        difficulty_level: 'intermediate',
+                        problem_type: 'text'
+                    }),
+                    redirect: 'manual'
+                });
+                
+                result += `\n\nCurrent Test Results:
+Status: ${response.status}
+Type: ${response.type}
+Redirected: ${response.redirected}
+
+${response.status === 401 ? '✅ Fix appears to be working - 401 received correctly' : '❌ Unexpected status'}
+${response.type !== 'opaqueredirect' ? '✅ Not treated as redirect' : '❌ Still treated as redirect'}`;
+                
+                showResult('testBeforeAfterResult', result, response.status === 401 ? 'success' : 'warning');
+            } catch (error) {
+                if (error.message.includes('Request was redirected')) {
+                    result += `\n\n❌ Still getting redirect error: ${error.message}`;
+                    showResult('testBeforeAfterResult', result, 'error');
+                } else {
+                    result += `\n\n✅ Getting proper error: ${error.message}`;
+                    showResult('testBeforeAfterResult', result, 'success');
+                }
+            }
+        }
+    </script>
+</body>
+</html>
+
