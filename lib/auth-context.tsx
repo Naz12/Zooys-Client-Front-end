@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState, ReactNode } from 'react';
 
 // Types
 interface User {
@@ -24,6 +24,7 @@ interface AuthContextType extends AuthState {
   logout: () => Promise<void>;
   clearError: () => void;
   refreshToken: () => Promise<void>;
+  isAuthRestored: boolean;
 }
 
 // Action types
@@ -119,11 +120,18 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/a
 // Auth provider component
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(authReducer, initialState);
+  const [isClient, setIsClient] = useState(false);
+  const [isAuthRestored, setIsAuthRestored] = useState(false);
+
+  // Set client flag to prevent hydration mismatch
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Restore authentication state on mount
   useEffect(() => {
     // Only run on client side to prevent hydration mismatch
-    if (typeof window === 'undefined') return;
+    if (!isClient || typeof window === 'undefined') return;
     
     const restoreAuth = () => {
       try {
@@ -140,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (cacheAge < 5 * 60 * 1000 && isAuthenticated && token && userData) {
             const user = JSON.parse(userData);
             dispatch({ type: 'AUTH_RESTORE', payload: { user, token } });
+            setIsAuthRestored(true);
             return; // Skip API validation for cached data
           }
         }
@@ -153,17 +162,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             timestamp: Date.now(),
             isAuthenticated: true
           }));
+        } else {
+          // No auth data found, mark as restored anyway
+          setIsAuthRestored(true);
         }
       } catch (error) {
         console.error('Failed to restore auth state:', error);
         localStorage.removeItem('auth_token');
         localStorage.removeItem('auth_user');
         localStorage.removeItem('auth_cache');
+      } finally {
+        // Always mark auth restoration as complete
+        setIsAuthRestored(true);
       }
     };
 
     restoreAuth();
-  }, []);
+  }, [isClient]);
 
   // Auto-logout on inactivity
   useEffect(() => {
@@ -341,6 +356,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     clearError,
     refreshToken,
+    isAuthRestored,
   };
 
   return (

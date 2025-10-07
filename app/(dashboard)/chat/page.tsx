@@ -330,9 +330,9 @@ export default function ChatPage() {
                     className="flex-1"
                   />
                   <Button
+                    variant="gradient"
                     onClick={handleSendMessage}
                     disabled={isLoading || !inputValue.trim()}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
                     size="sm"
                   >
                     <Send size={16} />

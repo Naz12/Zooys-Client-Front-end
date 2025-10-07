@@ -1,325 +1,333 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import FileUpload, { FileUploadItem } from "@/components/ui/file-upload";
-import PasswordInput from "@/components/ui/password-input";
-import RAGSummary from "@/components/ui/rag-summary";
-import ResultDisplay, { SummaryResult } from "@/components/ui/result-display";
-import { summarizeApi, type SummarizeRequest, type SummarizeResponse } from "@/lib/api-client";
-import { useAuth } from "@/lib/auth-context";
-import { useNotifications } from "@/lib/notifications";
-import { FileText, ArrowLeft, Settings, Brain, Upload } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { AlertTriangle, FileText, Plus, Search, Trash2, Eye, Calendar } from "lucide-react";
+import { aiResultsApi } from "@/lib/api-client";
+import { AIResult } from "@/lib/types/api";
+
+// Define the structure for result_data
+interface SummaryResultData {
+  summary?: string;
+  [key: string]: unknown;
+}
+import { useNotifications } from "@/lib/notifications";
 
 export default function PDFSummarizerPage() {
-  const { user } = useAuth();
-  const { showSuccess, showError } = useNotifications();
+  const router = useRouter();
+  const { showError, showSuccess } = useNotifications();
   
-  const [language, setLanguage] = useState("en");
-  const [isLoading, setIsLoading] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<FileUploadItem[]>([]);
-  const [result, setResult] = useState<SummaryResult | null>(null);
-  const [uploadedFileIds, setUploadedFileIds] = useState<number[]>([]);
-  const [showPasswordInput, setShowPasswordInput] = useState(false);
-  const [pendingPasswordRequest, setPendingPasswordRequest] = useState<SummarizeRequest | null>(null);
+  const [pdfSummaries, setPdfSummaries] = useState<AIResult[]>([]);
+  const [selectedSummary, setSelectedSummary] = useState<AIResult | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [backendAvailable, setBackendAvailable] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const handleSummarize = async () => {
-    if (!user) {
-      showError("Error", "Please log in to use this feature");
-      return;
-    }
-
-    if (uploadedFileIds.length === 0) {
-      showError("Error", "Please upload a PDF file first");
-      return;
-    }
-
-    setIsLoading(true);
-    setResult(null);
-
+  const loadPdfSummaries = useCallback(async (search?: string) => {
     try {
-      const request: SummarizeRequest = {
-        content_type: "pdf",
-        source: {
-          type: "file",
-          data: uploadedFileIds[0].toString()
-        },
-        options: {
-          mode: "detailed",
-          language: language,
-          focus: "summary"
-        }
-      };
-
-      const response: SummarizeResponse = await summarizeApi.summarize(request);
-      
-      // Handle API errors
-      if (response.error) {
-        // Check if it's a password-protected PDF error
-        if (response.error.includes("password-protected")) {
-          setPendingPasswordRequest(request);
-          setShowPasswordInput(true);
-          return;
-        }
-        
-        showError("Error", response.error);
-        return;
-      }
-
-      if (!response.summary) {
-        showError("Error", "No summary generated");
-        return;
-      }
-      
-      const summaryResult: SummaryResult = {
-        id: Date.now().toString(),
-        content: response.summary,
-        contentType: "pdf",
-        source: {
-          title: response.source_info.title,
-          author: response.source_info.author,
-        },
-        metadata: {
-          processingTime: parseFloat(response.metadata.processing_time.replace('s', '')),
-          wordCount: response.source_info.word_count || 0,
-          confidence: response.metadata.confidence,
-          language: language
-        },
-        timestamp: new Date()
-      };
-
-      setResult(summaryResult);
-      showSuccess("Success", "PDF summarized successfully!");
+      setIsLoading(true);
+      const searchParam = search && search.trim().length > 0 ? search : undefined;
+      const response = await aiResultsApi.getResults('summarize', searchParam, 1, 15);
+      setPdfSummaries(response.ai_results as AIResult[]);
+      setBackendAvailable(true);
     } catch (error) {
-      console.error("Summarization error:", error);
-      showError("Error", error instanceof Error ? error.message : "Failed to summarize PDF");
+      console.error('Failed to load PDF summaries:', error);
+      
+      // Handle different types of errors
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('CORS')) {
+          setBackendAvailable(false);
+          showError("Backend Connection Error", "Cannot connect to the backend server. Please ensure the server is running on http://localhost:8000 and CORS is properly configured.");
+        } else if (error.message.includes('Backend server is not running')) {
+          setBackendAvailable(false);
+          showError("Backend Not Available", "The backend server is not running. Please start the backend server on http://localhost:8000");
+        } else {
+          showError("Error", "Failed to load PDF summaries");
+        }
+      } else {
+        showError("Error", "Failed to load PDF summaries");
+      }
+      setPdfSummaries([]);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [showError]);
 
-  const handlePasswordSubmit = async (password: string) => {
-    if (!pendingPasswordRequest) return;
+  // Load PDF summaries on mount and handle search
+  useEffect(() => {
+    if (searchTerm.trim() === "") {
+      loadPdfSummaries();
+    } else {
+      const timeoutId = setTimeout(() => {
+        loadPdfSummaries(searchTerm);
+      }, 500);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [searchTerm, loadPdfSummaries]);
 
-    setIsLoading(true);
-    setShowPasswordInput(false);
-
+  const handleDeleteSummary = async (id: number) => {
     try {
-      const requestWithPassword: SummarizeRequest = {
-        ...pendingPasswordRequest,
-        options: {
-          ...pendingPasswordRequest.options,
-          password: password
-        }
-      };
-
-      const response: SummarizeResponse = await summarizeApi.summarize(requestWithPassword);
-      
-      if (response.error) {
-        showError("Error", response.error);
-        return;
+      await aiResultsApi.deleteResult(id);
+      showSuccess("Success", "PDF summary deleted successfully");
+      loadPdfSummaries(searchTerm);
+      if (selectedSummary?.id === id) {
+        setSelectedSummary(null);
       }
-
-      if (!response.summary) {
-        showError("Error", "No summary generated");
-        return;
-      }
-      
-      const summaryResult: SummaryResult = {
-        id: Date.now().toString(),
-        content: response.summary,
-        contentType: "pdf",
-        source: {
-          title: response.source_info.title,
-          author: response.source_info.author,
-        },
-        metadata: {
-          processingTime: parseFloat(response.metadata.processing_time.replace('s', '')),
-          wordCount: response.source_info.word_count || 0,
-          confidence: response.metadata.confidence,
-          language: language
-        },
-        timestamp: new Date()
-      };
-
-      setResult(summaryResult);
-      showSuccess("Success", "PDF summarized successfully!");
     } catch (error) {
-      console.error("Password summarization error:", error);
-      showError("Error", error instanceof Error ? error.message : "Failed to summarize PDF with password");
-    } finally {
-      setIsLoading(false);
-      setPendingPasswordRequest(null);
+      console.error('Failed to delete PDF summary:', error);
+      showError("Error", "Failed to delete PDF summary");
     }
   };
 
-  const handlePasswordCancel = () => {
-    setShowPasswordInput(false);
-    setPendingPasswordRequest(null);
-    setIsLoading(false);
+  const handleViewSummary = (summary: AIResult) => {
+    setSelectedSummary(summary);
   };
 
-  const handleRegenerate = () => {
-    handleSummarize();
+  const handleCreateNew = () => {
+    router.push('/pdf-summarizer/create');
   };
 
-  const handleExport = (format: "text" | "pdf" | "markdown") => {
-    console.log(`Exporting as ${format}`);
+  const handleViewPDF = (summary: AIResult) => {
+    if (summary.file_url) {
+      // Store data for the analysis page
+      const analysisData = {
+        url: summary.file_url.startsWith('http') ? summary.file_url : `http://localhost:8000${summary.file_url}`,
+        summary: {
+          id: summary.id.toString(),
+          content: (summary.result_data as unknown as SummaryResultData)?.summary || 'No summary available',
+          contentType: 'pdf',
+        source: {
+            title: summary.title,
+            author: summary.metadata?.source_info?.author || 'Unknown'
+        },
+        metadata: {
+            wordCount: summary.metadata?.source_info?.word_count || 0,
+            processingTime: summary.metadata?.processing_time || '0s',
+            confidence: summary.metadata?.confidence || 0.95
+          },
+          timestamp: summary.created_at
+        }
+      };
+      
+        localStorage.setItem('pdfAnalysisData', JSON.stringify(analysisData));
+      router.push('/pdf-analysis');
+      } else {
+        showError("Error", "PDF file not found");
+    }
   };
 
-  const handleShare = () => {
-    console.log("Sharing result");
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "Unknown";
+      
+      const now = new Date();
+      const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+      
+      if (diffInHours < 1) return "Just now";
+      if (diffInHours < 24) return `${diffInHours} hours ago`;
+      if (diffInHours < 48) return "Yesterday";
+      
+      return date.toLocaleDateString();
+    } catch {
+      return "Unknown";
+    }
   };
 
   return (
-    <>
+    <div className="max-w-6xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">PDF Summarizer</h1>
+          <p className="text-muted-foreground">
+            Create and manage AI-powered PDF summaries
+          </p>
+        </div>
+        <Button 
+          onClick={handleCreateNew}
+          className="bg-red-600 hover:bg-red-500 text-white"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Create New Summary
+        </Button>
+      </div>
 
-      {/* Main Content */}
-      <div className="space-y-6">
-        <div className="max-w-4xl mx-auto space-y-6">
-          {/* Upload Card */}
-          <Card className="bg-card border border-border rounded-xl shadow-md">
-            <CardContent className="p-6">
-              <div className="space-y-6">
-                <div className="text-center">
-                  <h2 className="text-xl font-semibold mb-2">Upload PDF Document</h2>
-                  <p className="text-muted-foreground">
-                    Upload your PDF file to get an AI-powered summary
+      {/* Backend Availability Warning */}
+      {!backendAvailable && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-yellow-600" />
+            <div>
+              <h3 className="font-medium text-yellow-800">Backend Server Not Available</h3>
+              <p className="text-sm text-yellow-700">
+                The backend server is not running. Please start the backend server on <code className="bg-yellow-100 px-1 rounded">http://localhost:8000</code> to use all features.
+              </p>
+                    </div>
+                    </div>
+                </div>
+      )}
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+        <Input
+          placeholder="Search PDF summaries..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Panel - Summary List */}
+        <div className="lg:col-span-1">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                PDF Summaries
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+                    {isLoading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto"></div>
+                  <p className="text-muted-foreground mt-2">Loading summaries...</p>
+                </div>
+              ) : pdfSummaries.length === 0 ? (
+                <div className="text-center py-8">
+                  <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="font-medium mb-2">No PDF summaries yet</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Create your first PDF summary to get started
+                  </p>
+                  <Button onClick={handleCreateNew} size="sm">
+                    Create Summary
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {pdfSummaries.map((summary) => (
+                    <div
+                      key={summary.id}
+                      className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                        selectedSummary?.id === summary.id
+                          ? 'border-red-200 bg-red-50'
+                          : 'border-border hover:border-red-200'
+                      }`}
+                      onClick={() => handleViewSummary(summary)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-sm truncate">
+                            {summary.title}
+                          </h4>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                            {summary.description || 'No description available'}
+                          </p>
+                          <div className="flex items-center gap-2 mt-2">
+                            <Badge variant="secondary" className="text-xs">
+                              {summary.status}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {formatDate(summary.created_at)}
+                            </span>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSummary(summary.id);
+                          }}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+              )}
+            </CardContent>
+          </Card>
+          </div>
+
+        {/* Right Panel - Summary Details */}
+        <div className="lg:col-span-2">
+          {selectedSummary ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  {selectedSummary.title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                  <div>
+                  <h4 className="font-medium mb-2">Description</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedSummary.description || 'No description available'}
                   </p>
                 </div>
 
-                {/* Language Selection */}
-                <div className="flex items-center justify-center space-x-4">
-                  <label className="text-sm font-medium">Language:</label>
-                  <select
-                    value={language}
-                    onChange={(e) => setLanguage(e.target.value)}
-                    className="rounded-md border border-border bg-background px-3 py-2 text-sm"
-                  >
-                    <option value="en">English</option>
-                    <option value="es">Spanish</option>
-                    <option value="fr">French</option>
-                    <option value="de">German</option>
-                    <option value="it">Italian</option>
-                    <option value="pt">Portuguese</option>
-                    <option value="ru">Russian</option>
-                    <option value="zh">Chinese</option>
-                    <option value="ja">Japanese</option>
-                    <option value="ko">Korean</option>
-                  </select>
+                  <div>
+                  <h4 className="font-medium mb-2">Summary</h4>
+                  <div className="bg-muted p-4 rounded-lg">
+                    <p className="text-sm">
+                      {(selectedSummary.result_data as unknown as SummaryResultData)?.summary || 'No summary available'}
+                    </p>
+                  </div>
                 </div>
 
-                {/* File Upload */}
-                <FileUpload
-                  accept=".pdf,.doc,.docx,.txt,.rtf"
-                  maxSize={50}
-                  multiple={false}
-                  files={uploadedFiles}
-                  onFilesChange={setUploadedFiles}
-                  onUploadIdsChange={setUploadedFileIds}
-                />
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">
+                    {selectedSummary.status}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    Created {formatDate(selectedSummary.created_at)}
+                  </span>
+                </div>
 
-                {/* Summarize Button */}
-                <div className="flex justify-center">
+                <div className="flex gap-2">
                   <Button
-                    onClick={handleSummarize}
-                    disabled={isLoading || uploadedFileIds.length === 0}
-                    className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white px-8 py-2"
+                    onClick={() => handleViewPDF(selectedSummary)}
+                    className="flex-1"
                   >
-                    {isLoading ? (
-                      <>
-                        <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                        Analyzing PDF...
-                      </>
-                    ) : (
-                      <>
-                        <Brain className="mr-2 h-4 w-4" />
-                        Summarize PDF
-                      </>
-                    )}
+                    <Eye className="h-4 w-4 mr-2" />
+                    View PDF & Summary
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleDeleteSummary(selectedSummary.id)}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
                   </Button>
                 </div>
-              </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="text-center py-12">
+                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="font-medium mb-2">Select a PDF Summary</h3>
+                <p className="text-sm text-muted-foreground">
+                  Choose a summary from the list to view details
+                </p>
             </CardContent>
           </Card>
-
-          {/* Features Card */}
-          <Card className="bg-muted/30 border border-border rounded-xl">
-            <CardContent className="p-6">
-              <h3 className="font-semibold text-lg mb-4">PDF Analysis Features</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 rounded-full bg-green-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <div className="w-2 h-2 rounded-full bg-green-500" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-sm">Smart Extraction</h4>
-                    <p className="text-xs text-muted-foreground">Extract text from any PDF format</p>
-                  </div>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <div className="w-2 h-2 rounded-full bg-blue-500" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-sm">Password Protected</h4>
-                    <p className="text-xs text-muted-foreground">Handle encrypted PDFs</p>
-                  </div>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <div className="w-2 h-2 rounded-full bg-purple-500" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-sm">RAG Analysis</h4>
-                    <p className="text-xs text-muted-foreground">Ask questions about your PDF</p>
-                  </div>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 rounded-full bg-orange-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <div className="w-2 h-2 rounded-full bg-orange-500" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-sm">Metadata</h4>
-                    <p className="text-xs text-muted-foreground">Document information and stats</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Password Input for PDF */}
-          <PasswordInput
-            onPasswordSubmit={handlePasswordSubmit}
-            onCancel={handlePasswordCancel}
-            isVisible={showPasswordInput}
-          />
-
-          {/* RAG Summary for PDF files */}
-          {uploadedFileIds.length > 0 && (
-            <RAGSummary
-              uploadId={uploadedFileIds[0]}
-              onSummaryGenerated={(summary) => {
-                console.log("RAG summary generated:", summary);
-              }}
-            />
-          )}
-
-          {/* Results Display */}
-          {result && (
-            <ResultDisplay
-              result={result}
-              onRegenerate={handleRegenerate}
-              onExport={handleExport}
-              onShare={handleShare}
-              showMetadata={true}
-              showActions={true}
-            />
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }

@@ -10,7 +10,18 @@ import type {
   YouTubeSummarizeResponse,
   ChatRequest,
   ChatResponse,
-  ChatHistoryResponse
+  ChatHistoryResponse,
+  FlashcardGenerateRequest,
+  FlashcardGenerateResponse,
+  FlashcardSetsResponse,
+  FlashcardSetResponse,
+  FlashcardUpdateRequest,
+  FlashcardSet,
+  PDFSummary,
+  PDFSummariesResponse,
+  PDFSummaryResponse,
+  PDFSummaryCreateRequest,
+  PDFSummaryCreateResponse
 } from './types/api';
 
 // API base URL - Hardcoded to fix double /api issue
@@ -46,6 +57,7 @@ export class ApiClient {
     const url = `${this.baseURL}${endpoint}`;
     console.log('API Request URL:', url); // Debug log
     const token = this.token || this.getStoredToken();
+    console.log('API Request Token:', token ? 'Present' : 'Missing'); // Debug log
 
     const config: RequestInit = {
       headers: {
@@ -62,14 +74,69 @@ export class ApiClient {
       };
     }
 
+    console.log('API Request Config:', {
+      method: config.method || 'GET',
+      headers: config.headers,
+      body: config.body ? JSON.parse(config.body as string) : undefined
+    });
+    
+    // Log the full request body separately for better visibility
+    if (config.body) {
+      console.log('Request Body:', JSON.parse(config.body as string));
+    }
+
     try {
       const response = await fetch(url, config);
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ 
-          message: 'An error occurred' 
-        }));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        let errorData;
+        let responseText;
+        
+        try {
+          // First, try to get the response as text to see what we're actually getting
+          responseText = await response.text();
+          console.log('Raw response text:', responseText);
+          
+          // Try to parse as JSON
+          if (responseText.trim()) {
+            errorData = JSON.parse(responseText);
+          } else {
+            // Empty response body
+            errorData = { 
+              message: `HTTP error! status: ${response.status} - Empty response body`,
+              status: response.status,
+              statusText: response.statusText,
+              emptyResponse: true
+            };
+          }
+        } catch (parseError) {
+          // Response is not valid JSON
+          errorData = { 
+            message: `HTTP error! status: ${response.status} - Invalid JSON response`,
+            status: response.status,
+            statusText: response.statusText,
+            rawResponse: responseText,
+            parseError: parseError instanceof Error ? parseError.message : 'Unknown parse error'
+          };
+        }
+        
+        console.error('API Error Response:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: url,
+          errorData: errorData,
+          rawResponse: responseText,
+          headers: Object.fromEntries(response.headers.entries())
+        });
+        
+        // Log the error data separately for better visibility
+        console.error('Backend Error Details:', errorData);
+        
+        const error = new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        (error as any).status = response.status;
+        (error as any).response = errorData;
+        (error as any).rawResponse = responseText;
+        throw error;
       }
 
       return response.json();
@@ -136,10 +203,54 @@ export class ApiClient {
       const response = await fetch(url, config);
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ 
-          message: 'An error occurred' 
-        }));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        let errorData;
+        let responseText;
+        
+        try {
+          // First, try to get the response as text to see what we're actually getting
+          responseText = await response.text();
+          console.log('Raw response text:', responseText);
+          
+          // Try to parse as JSON
+          if (responseText.trim()) {
+            errorData = JSON.parse(responseText);
+          } else {
+            // Empty response body
+            errorData = { 
+              message: `HTTP error! status: ${response.status} - Empty response body`,
+              status: response.status,
+              statusText: response.statusText,
+              emptyResponse: true
+            };
+          }
+        } catch (parseError) {
+          // Response is not valid JSON
+          errorData = { 
+            message: `HTTP error! status: ${response.status} - Invalid JSON response`,
+            status: response.status,
+            statusText: response.statusText,
+            rawResponse: responseText,
+            parseError: parseError instanceof Error ? parseError.message : 'Unknown parse error'
+          };
+        }
+        
+        console.error('API Error Response:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: url,
+          errorData: errorData,
+          rawResponse: responseText,
+          headers: Object.fromEntries(response.headers.entries())
+        });
+        
+        // Log the error data separately for better visibility
+        console.error('Backend Error Details:', errorData);
+        
+        const error = new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        (error as any).status = response.status;
+        (error as any).response = errorData;
+        (error as any).rawResponse = responseText;
+        throw error;
       }
 
       return response.json();
@@ -179,6 +290,21 @@ export const API_ENDPOINTS = {
   MATH_SOLVE: '/api/math/solve',
   FLASHCARDS_GENERATE: '/api/flashcards/generate',
   DIAGRAM_GENERATE: '/api/diagram/generate',
+  
+  // Flashcard Management
+  FLASHCARDS: '/api/flashcards',
+  FLASHCARDS_PUBLIC: '/api/flashcards/public',
+  
+  // File Management
+  FILES_UPLOAD: '/api/files/upload',
+  FILES: '/api/files',
+  
+  // AI Results Management
+  AI_RESULTS: '/api/ai-results',
+  AI_RESULTS_STATS: '/api/ai-results/stats',
+  
+  // PDF Summary Management
+  PDF_SUMMARIES: '/api/pdf-summaries',
   
   // Unified Summarization
   SUMMARIZE: '/api/summarize',
@@ -487,3 +613,317 @@ export const chatSessionApi = {
   getConversationHistory: (sessionId: number) =>
     apiClient.get<{ session_id: number; session_name: string; conversation: ChatMessage[]; total_messages: number }>(`${API_ENDPOINTS.CHAT_SESSIONS}/${sessionId}/history`),
 };
+
+// Flashcard API functions
+export const flashcardApi = {
+  // Generate flashcards (supports file uploads)
+  generate: (request: FlashcardGenerateRequest) => {
+    if (request.file) {
+      // File upload - use FormData
+      const formData = new FormData();
+      formData.append('file', request.file);
+      formData.append('input_type', request.input_type || 'file');
+      formData.append('count', (request.count || 5).toString());
+      formData.append('difficulty', request.difficulty || 'intermediate');
+      formData.append('style', request.style || 'mixed');
+      
+      return apiClient.uploadFile<FlashcardGenerateResponse>(
+        API_ENDPOINTS.FLASHCARDS_GENERATE, 
+        request.file, 
+        {
+          input_type: request.input_type || 'file',
+          count: request.count || 5,
+          difficulty: request.difficulty || 'intermediate',
+          style: request.style || 'mixed'
+        }
+      );
+    } else {
+      // Text/URL input - use JSON
+      return apiClient.post<FlashcardGenerateResponse>(API_ENDPOINTS.FLASHCARDS_GENERATE, request);
+    }
+  },
+  
+  // Get user's flashcard sets
+  getSets: (page: number = 1, perPage: number = 15, search?: string) => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      per_page: perPage.toString(),
+      ...(search && { search })
+    });
+    return apiClient.get<FlashcardSetsResponse>(`${API_ENDPOINTS.FLASHCARDS}?${params}`);
+  },
+  
+  // Get specific flashcard set
+  getSet: (id: number) =>
+    apiClient.get<FlashcardSetResponse>(`${API_ENDPOINTS.FLASHCARDS}/${id}`),
+  
+  // Update flashcard set
+  updateSet: (id: number, request: FlashcardUpdateRequest) =>
+    apiClient.put<{ message: string; flashcard_set: FlashcardSet }>(`${API_ENDPOINTS.FLASHCARDS}/${id}`, request),
+  
+  // Delete flashcard set
+  deleteSet: (id: number) =>
+    apiClient.delete<{ message: string }>(`${API_ENDPOINTS.FLASHCARDS}/${id}`),
+  
+  // Get public flashcard sets
+  getPublicSets: (page: number = 1, perPage: number = 15, search?: string) => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      per_page: perPage.toString(),
+      ...(search && { search })
+    });
+    return apiClient.get<FlashcardSetsResponse>(`${API_ENDPOINTS.FLASHCARDS_PUBLIC}?${params}`);
+  },
+};
+
+// File Management API functions
+export const fileApi = {
+  // Validate file before upload
+  validate: (file: File, contentType: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('content_type', contentType);
+    return apiClient.uploadFile<{
+      success: boolean;
+      validation: {
+        is_valid: boolean;
+        errors: string[];
+        warnings: string[];
+        file_info: {
+          name: string;
+          size: number;
+          human_size: string;
+          type: string;
+          extension: string;
+        };
+      };
+      can_upload: boolean;
+      message: string;
+    }>('/api/summarize/validate', file, { content_type: contentType });
+  },
+
+  // Upload file using original endpoint (more reliable)
+  upload: (file: File, metadata?: { tool_type: string; description?: string }) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (metadata) {
+      formData.append('metadata', JSON.stringify(metadata));
+    }
+    return apiClient.uploadFile<{
+      message: string;
+      file_upload: {
+        id: number;
+        original_name: string;
+        stored_name: string;
+        file_type: string;
+        file_size: number;
+        human_file_size: string;
+        mime_type: string;
+        is_processed: boolean;
+        created_at: string;
+      };
+      file_url: string;
+    }>('/api/files/upload', file, metadata);
+  },
+  
+  // Get user's files
+  getFiles: (search?: string, page: number = 1, perPage: number = 15) => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      per_page: perPage.toString(),
+      ...(search && { search })
+    });
+    return apiClient.get<{
+      files: Array<{
+        id: number;
+        original_name: string;
+        stored_name: string;
+        file_type: string;
+        file_size: number;
+        human_file_size: string;
+        mime_type: string;
+        is_processed: boolean;
+        file_url: string;
+        created_at: string;
+      }>;
+      pagination: {
+        current_page: number;
+        last_page: number;
+        per_page: number;
+        total: number;
+      };
+    }>(`/api/files?${params}`);
+  },
+  
+  // Get specific file
+  getFile: (id: number) =>
+    apiClient.get<{
+      file: {
+        id: number;
+        original_name: string;
+        stored_name: string;
+        file_type: string;
+        file_size: number;
+        human_file_size: string;
+        mime_type: string;
+        is_processed: boolean;
+        file_url: string;
+        metadata?: {
+          tool_type: string;
+          uploaded_at: string;
+        };
+        created_at: string;
+      };
+    }>(`/api/files/${id}`),
+  
+  // Get file content
+  getFileContent: (id: number) =>
+    apiClient.get<{
+      content: string;
+      metadata: {
+        word_count: number;
+        character_count: number;
+        pages: Array<{
+          page: number;
+          text: string;
+        }>;
+        total_pages: number;
+      };
+    }>(`/api/files/${id}/content`),
+  
+  // Delete file
+  deleteFile: (id: number) =>
+    apiClient.delete<{ message: string }>(`/api/files/${id}`),
+};
+
+// AI Results Management API functions
+export const aiResultsApi = {
+  // Get AI results
+  getResults: (toolType?: string, search?: string, page: number = 1, perPage: number = 15) => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      per_page: perPage.toString(),
+      ...(toolType && { tool_type: toolType }),
+      ...(search && { search })
+    });
+    return apiClient.get<{
+      ai_results: Array<{
+        id: number;
+        tool_type: string;
+        title: string;
+        description: string;
+        status: string;
+        file_url?: string;
+        input_data: any;
+        result_data: any;
+        metadata: any;
+        created_at: string;
+      }>;
+      pagination: {
+        current_page: number;
+        last_page: number;
+        per_page: number;
+        total: number;
+      };
+    }>(`/api/ai-results?${params}`);
+  },
+  
+  // Get specific AI result
+  getResult: (id: number) =>
+    apiClient.get<{
+      ai_result: {
+        id: number;
+        tool_type: string;
+        title: string;
+        description: string;
+        status: string;
+        file_url?: string;
+        file_upload?: {
+          id: number;
+          original_name: string;
+          file_type: string;
+          file_url: string;
+        };
+        input_data: any;
+        result_data: any;
+        metadata: any;
+        created_at: string;
+      };
+    }>(`/api/ai-results/${id}`),
+  
+  // Update AI result
+  updateResult: (id: number, data: { title?: string; description?: string; metadata?: any }) =>
+    apiClient.put<{
+      message: string;
+      ai_result: {
+        id: number;
+        title: string;
+        description: string;
+        updated_at: string;
+      };
+    }>(`/api/ai-results/${id}`, data),
+  
+  // Delete AI result
+  deleteResult: (id: number) =>
+    apiClient.delete<{ message: string }>(`/api/ai-results/${id}`),
+  
+  // Get AI results statistics
+  getStats: () =>
+    apiClient.get<{
+      stats: {
+        total_results: number;
+        results_by_tool: Record<string, number>;
+        recent_results: Array<{
+          id: number;
+          title: string;
+          tool_type: string;
+          created_at: string;
+        }>;
+      };
+    }>('/api/ai-results/stats'),
+};
+
+// PDF Summary API functions
+export const pdfSummaryApi = {
+  // Get user's PDF summaries
+  getSummaries: (page: number = 1, perPage: number = 15, search?: string) => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      per_page: perPage.toString(),
+      ...(search && { search })
+    });
+    return apiClient.get<PDFSummariesResponse>(`${API_ENDPOINTS.PDF_SUMMARIES}?${params}`);
+  },
+  
+  // Get specific PDF summary
+  getSummary: (id: number) =>
+    apiClient.get<PDFSummaryResponse>(`${API_ENDPOINTS.PDF_SUMMARIES}/${id}`),
+  
+  // Create PDF summary
+  createSummary: (request: PDFSummaryCreateRequest) => {
+    const formData = new FormData();
+    formData.append('file', request.file);
+    formData.append('language', request.language || 'en');
+    formData.append('mode', request.mode || 'detailed');
+    formData.append('focus', request.focus || 'summary');
+    
+    return apiClient.uploadFile<PDFSummaryCreateResponse>(
+      `${API_ENDPOINTS.PDF_SUMMARIES}/create`, 
+      request.file, 
+      {
+        language: request.language || 'en',
+        mode: request.mode || 'detailed',
+        focus: request.focus || 'summary'
+      }
+    );
+  },
+  
+  // Update PDF summary
+  updateSummary: (id: number, request: { title?: string; description?: string }) =>
+    apiClient.put<{ message: string; pdf_summary: PDFSummary }>(`${API_ENDPOINTS.PDF_SUMMARIES}/${id}`, request),
+  
+  // Delete PDF summary
+  deleteSummary: (id: number) =>
+    apiClient.delete<{ message: string }>(`${API_ENDPOINTS.PDF_SUMMARIES}/${id}`),
+};
+

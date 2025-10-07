@@ -12,6 +12,7 @@ import {
   User,
   CreditCard,
   Brain,
+  Presentation,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -30,6 +31,7 @@ function Sidebar() {
     { label: "AI Math Solver", href: "/math-solver", icon: <Calculator size={18} /> },
     { label: "AI Flashcards", href: "/flashcards", icon: <BookOpen size={18} /> },
     { label: "AI Diagrams", href: "/diagrams", icon: <Network size={18} /> },
+    { label: "AI Presentation", href: "/presentation", icon: <Presentation size={18} /> },
   ];
 
   return (

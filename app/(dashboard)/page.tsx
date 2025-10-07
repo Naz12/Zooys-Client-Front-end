@@ -1,4 +1,4 @@
-import { Home, Youtube, FileText, MessageCircle, PenTool, Calculator, BookOpen, Network, ArrowRight, Sparkles } from "lucide-react";
+import { Home, Youtube, FileText, MessageCircle, PenTool, Calculator, BookOpen, Network, ArrowRight, Sparkles, Presentation } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,7 @@ export default function DashboardPage() {
               Extract key insights from YouTube videos, PDFs, links, and text with AI-powered summarization.
             </p>
             <Link href="/summarizer">
-              <Button className="w-full bg-blue-600 hover:bg-blue-500 text-white">
+              <Button variant="info" className="w-full">
                 <ArrowRight className="mr-2 h-4 w-4" />
                 Open Summarizer
               </Button>
@@ -63,7 +63,7 @@ export default function DashboardPage() {
               Get instant summaries of YouTube videos with key points, timestamps, and transcripts.
             </p>
             <Link href="/youtube-summarizer">
-              <Button className="w-full bg-red-600 hover:bg-red-500 text-white">
+              <Button variant="destructive" className="w-full">
                 <ArrowRight className="mr-2 h-4 w-4" />
                 Open YouTube Tool
               </Button>
@@ -87,7 +87,7 @@ export default function DashboardPage() {
               Analyze PDF documents with intelligent summarization and RAG-powered Q&A capabilities.
             </p>
             <Link href="/pdf-summarizer">
-              <Button className="w-full bg-green-600 hover:bg-green-500 text-white">
+              <Button variant="success" className="w-full">
                 <ArrowRight className="mr-2 h-4 w-4" />
                 Open PDF Tool
               </Button>
@@ -111,7 +111,7 @@ export default function DashboardPage() {
               Chat with our intelligent AI assistant for questions, explanations, and creative help.
             </p>
             <Link href="/chat">
-              <Button className="w-full bg-green-600 hover:bg-green-500 text-white">
+              <Button variant="success" className="w-full">
                 <ArrowRight className="mr-2 h-4 w-4" />
                 Start Chatting
               </Button>
@@ -135,7 +135,7 @@ export default function DashboardPage() {
               Generate high-quality content for blogs, emails, stories, and more with AI assistance.
             </p>
             <Link href="/writer">
-              <Button className="w-full bg-purple-600 hover:bg-purple-500 text-white">
+              <Button variant="gradient" className="w-full">
                 <ArrowRight className="mr-2 h-4 w-4" />
                 Start Writing
               </Button>
@@ -159,7 +159,7 @@ export default function DashboardPage() {
               Solve complex math problems with detailed step-by-step explanations and solutions.
             </p>
             <Link href="/math-solver">
-              <Button className="w-full bg-blue-600 hover:bg-blue-500 text-white">
+              <Button variant="info" className="w-full">
                 <ArrowRight className="mr-2 h-4 w-4" />
                 Solve Math
               </Button>
@@ -183,7 +183,7 @@ export default function DashboardPage() {
               Generate interactive study flashcards for any topic to enhance your learning experience.
             </p>
             <Link href="/flashcards">
-              <Button className="w-full bg-orange-600 hover:bg-orange-500 text-white">
+              <Button variant="warning" className="w-full">
                 <ArrowRight className="mr-2 h-4 w-4" />
                 Create Flashcards
               </Button>
@@ -207,9 +207,33 @@ export default function DashboardPage() {
               Create professional diagrams, flowcharts, and visual representations with AI assistance.
             </p>
             <Link href="/diagrams">
-              <Button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white">
+              <Button variant="secondary" className="w-full">
                 <ArrowRight className="mr-2 h-4 w-4" />
                 Generate Diagrams
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* AI Presentation */}
+        <Card className="bg-card border border-border rounded-xl shadow-md hover:shadow-lg transition-shadow">
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center">
+                <Presentation size={20} className="text-purple-500" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg">AI Presentation</h3>
+                <p className="text-sm text-muted-foreground">Create presentations</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Generate professional presentations with AI-powered content, slides, and speaker notes.
+            </p>
+            <Link href="/presentation">
+              <Button variant="gradient" className="w-full">
+                <ArrowRight className="mr-2 h-4 w-4" />
+                Create Presentation
               </Button>
             </Link>
           </CardContent>

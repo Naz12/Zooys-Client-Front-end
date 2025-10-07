@@ -92,7 +92,7 @@ export default function FileUpload({
       newFiles.push(newFile);
     }
 
-    onFilesChange([...files, ...newFiles]);
+    onFilesChange([...(files || []), ...newFiles]);
 
     // Upload files to API
     for (let i = 0; i < newFiles.length; i++) {
@@ -108,7 +108,7 @@ export default function FileUpload({
           
           // Update file status
           onFilesChange(prev => 
-            prev.map(f => f.id === file.id ? { 
+            (prev || []).map(f => f.id === file.id ? { 
               ...f, 
               status: "completed" as const,
               uploadId: response.upload_id
@@ -122,7 +122,7 @@ export default function FileUpload({
           
           // Update file status to error
           onFilesChange(prev => 
-            prev.map(f => f.id === file.id ? { 
+            (prev || []).map(f => f.id === file.id ? { 
               ...f, 
               status: "error" as const 
             } : f)
@@ -164,7 +164,7 @@ export default function FileUpload({
   };
 
   const removeFile = (fileId: string) => {
-    onFilesChange(files.filter(f => f.id !== fileId));
+    onFilesChange((files || []).filter(f => f.id !== fileId));
   };
 
   const getFileIcon = (type: string) => {

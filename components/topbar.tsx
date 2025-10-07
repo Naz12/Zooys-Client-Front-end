@@ -4,7 +4,7 @@ import ThemeToggle from "./ui/theme-toggle";
 import LangSwitch from "./ui/lang-switch";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "./ui/button";
-import { LogOut, Home, MessageCircle, PenTool, Calculator, BookOpen, FileText, Youtube, Brain, Zap } from "lucide-react";
+import { LogOut, Home, MessageCircle, PenTool, Calculator, BookOpen, FileText, Youtube, Brain, Zap, Presentation } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { memo } from "react";
@@ -30,6 +30,7 @@ function Topbar() {
       '/math-solver': { icon: Calculator, label: 'AI Math Solver' },
       '/flashcards': { icon: BookOpen, label: 'AI Flashcard Creator' },
       '/diagrams': { icon: FileText, label: 'AI Diagram Generator' },
+      '/presentation': { icon: Presentation, label: 'AI Presentation' },
       '/summarizer': { icon: Brain, label: 'AI Summarizer' },
       '/youtube-summarizer': { icon: Youtube, label: 'YouTube Summarizer' },
       '/pdf-summarizer': { icon: FileText, label: 'PDF Summarizer' },

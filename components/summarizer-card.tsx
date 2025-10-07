@@ -406,9 +406,10 @@ export default function SummarizerCard() {
         {/* Action Buttons - Mobile Stack */}
         <div className="flex flex-col sm:flex-row gap-3">
           <Button 
+            variant="gradient"
             onClick={handleSummarize}
             disabled={isLoading || (!inputValue.trim() && uploadedFiles.length === 0 && uploadedMedia.length === 0)}
-            className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:opacity-90 disabled:opacity-50"
+            className="flex-1"
           >
             {isLoading ? (
               <>
@@ -420,8 +421,8 @@ export default function SummarizerCard() {
             )}
           </Button>
           <Button
-            variant="outline"
-            className="flex-1 border-indigo-500 text-indigo-400 hover:bg-indigo-500 hover:text-white"
+            variant="secondary"
+            className="flex-1"
           >
             Batch Summarize
           </Button>

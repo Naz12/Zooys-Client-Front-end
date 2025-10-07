@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import AuthPage from './auth-page';
 
@@ -9,9 +9,15 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, isAuthRestored } = useAuth();
+  const [isMounted, setIsMounted] = useState(false);
 
-  if (isLoading) {
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Always show loading until mounted and auth state is restored
+  if (!isMounted || !isAuthRestored || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center space-y-4">

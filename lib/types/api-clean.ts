@@ -563,3 +563,4 @@ export interface AppConfig {
     debounce_delay: number;
   };
 }
+

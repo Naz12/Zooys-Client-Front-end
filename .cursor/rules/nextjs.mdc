@@ -1,6 +1,7 @@
 ---
 alwaysApply: true
 ---
+use mock data only when i tell you to use
 Follow mobile first approach for everything
 
 Reuse existing code/components before creating new ones.
