@@ -10,6 +10,7 @@ import { useNotifications } from "@/lib/notifications";
 import { Youtube, ArrowLeft, Settings, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import BackendStatus from "@/components/backend-status";
 
 export default function YouTubeSummarizerPage() {
   const { user } = useAuth();
@@ -41,6 +42,29 @@ export default function YouTubeSummarizerPage() {
     setIsLoading(true);
     setResult(null);
 
+    // First, check if backend is running and has the endpoint
+    try {
+      // Try a simple GET request to check if server is up
+      const serverCheck = await fetch('http://localhost:8000/', { 
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      console.log('Backend server check:', serverCheck.status);
+      
+      // Try to check if summarize endpoint exists
+      const endpointCheck = await fetch('http://localhost:8000/api/summarize', { 
+        method: 'OPTIONS',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      console.log('Summarize endpoint check:', endpointCheck.status);
+      
+    } catch (healthError) {
+      console.error('Backend connection failed:', healthError);
+      showError("Backend Error", "Cannot connect to backend server. Please ensure the server is running on http://localhost:8000");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const request: SummarizeRequest = {
         content_type: "link",
@@ -56,8 +80,12 @@ export default function YouTubeSummarizerPage() {
       };
 
       console.log('YouTube Summarize Request:', request);
+      console.log('Sending request to:', 'http://localhost:8000/api/summarize');
+      
       const response: SummarizeResponse = await summarizeApi.summarize(request);
       console.log('YouTube Summarize Response:', response);
+      console.log('Response type:', typeof response);
+      console.log('Response keys:', Object.keys(response));
       
       if (response.error) {
         console.error('YouTube Summarize Error:', response.error);
@@ -67,6 +95,16 @@ export default function YouTubeSummarizerPage() {
 
       if (!response.summary) {
         console.error('No summary in response:', response);
+        console.error('Response type:', typeof response);
+        console.error('Response keys:', Object.keys(response));
+        console.error('Full response structure:', JSON.stringify(response, null, 2));
+        
+        // Check if response is completely empty
+        if (Object.keys(response).length === 0) {
+          console.error('Empty response object - backend may not be processing YouTube URLs');
+          showError("Backend Issue", "The backend returned an empty response `{}`. This means:\n\n🔧 **Backend Status**: Server is running and CORS is configured ✅\n❌ **API Issue**: The /api/summarize endpoint is not working\n\n**Possible Causes:**\n1. `/api/summarize` endpoint not implemented\n2. YouTube URL processing not supported\n3. Backend crashed during processing\n4. Authentication issues\n\n**Next Steps:**\n1. Check backend server logs\n2. Verify /api/summarize endpoint exists\n3. Test with a simple POST request\n4. See md/backend-cors-setup.md for endpoint implementation");
+          return;
+        }
         
         // Try fallback to dedicated YouTube API
         console.log('Trying fallback YouTube API...');
@@ -102,7 +140,7 @@ export default function YouTubeSummarizerPage() {
           console.error('Fallback API also failed:', fallbackError);
         }
         
-        showError("Error", "No summary generated. Please check if the YouTube URL is valid and the video is accessible.");
+        showError("Error", "No summary generated. The backend may not support YouTube summarization or the video URL is not accessible.");
         return;
       }
       
@@ -129,7 +167,19 @@ export default function YouTubeSummarizerPage() {
       showSuccess("Success", "YouTube video summarized successfully!");
     } catch (error) {
       console.error("Summarization error:", error);
-      showError("Error", error instanceof Error ? error.message : "Failed to summarize YouTube video");
+      
+      // Check for specific error types
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch')) {
+          showError("Connection Error", "Cannot connect to the backend server. Please ensure the server is running on http://localhost:8000");
+        } else if (error.message.includes('CORS') || error.message.includes('blocked by CORS policy')) {
+          showError("CORS Configuration Error", "The backend server is running but CORS is not configured properly.\n\nTo fix this:\n1. The backend needs to allow requests from http://localhost:3000\n2. Add CORS middleware to your backend server\n3. See the CORS setup guide in md/backend-cors-setup.md\n\nThis is a backend configuration issue, not a frontend problem.");
+        } else {
+          showError("Error", error.message);
+        }
+      } else {
+        showError("Error", "Failed to summarize YouTube video. Please check your connection and try again.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -153,6 +203,8 @@ export default function YouTubeSummarizerPage() {
       {/* Main Content */}
       <div className="space-y-6">
         <div className="max-w-3xl mx-auto space-y-6">
+          {/* Backend Status */}
+          <BackendStatus />
           {/* Input Card */}
           <Card className="bg-card border border-border rounded-xl shadow-md">
             <CardContent className="p-6">
