@@ -33,6 +33,27 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'origin-when-cross-origin',
+          },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=()',
+          },
+        ],
+      },
     ];
   },
 
@@ -57,32 +78,6 @@ const nextConfig: NextConfig = {
     return [];
   },
 
-  // Security headers
-  async headers() {
-    return [
-      {
-        source: '/(.*)',
-        headers: [
-          {
-            key: 'X-Frame-Options',
-            value: 'DENY',
-          },
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff',
-          },
-          {
-            key: 'Referrer-Policy',
-            value: 'origin-when-cross-origin',
-          },
-          {
-            key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=()',
-          },
-        ],
-      },
-    ];
-  },
 
   // Image optimization
   images: {
@@ -111,9 +106,11 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['lucide-react'],
   },
 
-  // Output configuration
-  output: 'standalone',
-  outputFileTracingRoot: __dirname,
+  // Output configuration (only for production builds)
+  ...(process.env.NODE_ENV === 'production' && {
+    output: 'standalone',
+    outputFileTracingRoot: __dirname,
+  }),
 
   // Compression
   compress: true,

@@ -141,14 +141,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    const response = await fetch(url, config);
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'An error occurred' }));
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-    }
+    try {
+      const response = await fetch(url, config);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'An error occurred' }));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
 
-    return response.json();
+      return response.json();
+    } catch (error) {
+      // Handle network errors (backend not running, CORS, etc.)
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        throw new Error('Backend server is not running or not accessible');
+      }
+      throw error;
+    }
   }, [state.token]);
 
   // Logout function
@@ -161,12 +169,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('Logout API call failed:', error);
+      // Continue with logout even if API call fails
+      // This ensures user can still log out even if backend is down
     } finally {
-      // Clear local storage
+      // Clear all auth-related local storage
       localStorage.removeItem('auth_token');
       localStorage.removeItem('auth_user');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('token_expires_at');
+      localStorage.removeItem('auth_cache');
       
       // Only clear remember me if user explicitly logs out
       // (not on session expiry)
@@ -176,7 +187,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem('remember_me');
       }
       
+      // Dispatch logout action
       dispatch({ type: 'AUTH_LOGOUT' });
+      
+      // Reset auth restoration state
+      setIsAuthRestored(false);
+      
+      // Force a page reload to ensure clean state
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
     }
   }, [state.token, apiCall]);
 

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, FileText, Plus, Search, Trash2, Eye, Calendar } from "lucide-react";
+import { AlertTriangle, FileText, Plus, Search, Trash2, Eye, Calendar, AlertCircle } from "lucide-react";
 import { aiResultsApi } from "@/lib/api-client";
 import { AIResult } from "@/lib/types/api";
 
@@ -26,17 +26,39 @@ export default function PDFSummarizerPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [backendAvailable, setBackendAvailable] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  // Removed pagination state - loading all summaries at once
+  const isLoadingRef = useRef(false);
 
   const loadPdfSummaries = useCallback(async (search?: string) => {
+    // Prevent multiple simultaneous requests
+    if (isLoadingRef.current) return;
+    
     try {
+      isLoadingRef.current = true;
       setIsLoading(true);
       const searchParam = search && search.trim().length > 0 ? search : undefined;
-      const response = await aiResultsApi.getResults('summarize', searchParam, 1, 15);
-      setPdfSummaries(response.ai_results as AIResult[]);
+      const response = await aiResultsApi.getResults('summarize', searchParam, 1, 100); // Load up to 100 summaries
+      
+      // Debug log to see the actual response structure
+      console.log('PDF Summaries API Response:', response);
+      
+      // Handle different response structures
+      const summaries = response.ai_results || response.data?.ai_results || [];
+      
+      // Validate that we have a valid array
+      if (!Array.isArray(summaries)) {
+        console.error('Invalid response structure:', response);
+        setPdfSummaries([]);
+        setBackendAvailable(false);
+        showError("Invalid Response", "The server returned an invalid response format");
+        return;
+      }
+      
+      setPdfSummaries(summaries as AIResult[]);
       setBackendAvailable(true);
     } catch (error) {
       console.error('Failed to load PDF summaries:', error);
-      
+
       // Handle different types of errors
       if (error instanceof Error) {
         if (error.message.includes('Failed to fetch') || error.message.includes('CORS')) {
@@ -45,38 +67,53 @@ export default function PDFSummarizerPage() {
         } else if (error.message.includes('Backend server is not running')) {
           setBackendAvailable(false);
           showError("Backend Not Available", "The backend server is not running. Please start the backend server on http://localhost:8000");
+        } else if (error.message.includes('Backend server error') || error.message.includes('HTML instead of JSON') || error.message.includes('Invalid JSON response')) {
+          setBackendAvailable(false);
+          showError("Backend Server Error", "The backend server returned an error page instead of JSON. This usually means there's an error in the backend code. Please check the backend server logs.");
+        } else if (error.message.includes('500') && (error as any).rawResponse?.includes('<!DOCTYPE html>')) {
+          setBackendAvailable(false);
+          showError("Backend Server Error", "The backend server returned an HTML error page (500 Internal Server Error). This indicates a server-side error. Please check the backend server logs.");
         } else {
-          showError("Error", "Failed to load PDF summaries");
+          setBackendAvailable(false);
+          showError("Backend Error", "Failed to load PDF summaries. The backend server may be experiencing issues.");
         }
       } else {
+        setBackendAvailable(false);
         showError("Error", "Failed to load PDF summaries");
       }
       setPdfSummaries([]);
     } finally {
+      isLoadingRef.current = false;
       setIsLoading(false);
     }
-  }, [showError]);
+  }, []);
 
-  // Load PDF summaries on mount and handle search
+  // Load PDF summaries on mount and search changes
   useEffect(() => {
     if (searchTerm.trim() === "") {
-      loadPdfSummaries();
+      loadPdfSummaries(undefined);
     } else {
       const timeoutId = setTimeout(() => {
         loadPdfSummaries(searchTerm);
       }, 500);
       return () => clearTimeout(timeoutId);
     }
-  }, [searchTerm, loadPdfSummaries]);
+  }, [searchTerm]);
+
 
   const handleDeleteSummary = async (id: number) => {
     try {
       await aiResultsApi.deleteResult(id);
-      showSuccess("Success", "PDF summary deleted successfully");
-      loadPdfSummaries(searchTerm);
+      
+      // Remove from local state immediately
+      setPdfSummaries(prev => prev.filter(summary => summary.id !== id));
+      
+      // Clear selection if deleted item was selected
       if (selectedSummary?.id === id) {
         setSelectedSummary(null);
       }
+      
+      showSuccess("Success", "PDF summary deleted successfully");
     } catch (error) {
       console.error('Failed to delete PDF summary:', error);
       showError("Error", "Failed to delete PDF summary");
@@ -98,7 +135,21 @@ export default function PDFSummarizerPage() {
         url: summary.file_url.startsWith('http') ? summary.file_url : `http://localhost:8000${summary.file_url}`,
         summary: {
           id: summary.id.toString(),
-          content: (summary.result_data as unknown as SummaryResultData)?.summary || 'No summary available',
+          content: (() => {
+            try {
+              const resultData = summary.result_data;
+              if (typeof resultData === 'string') {
+                const parsed = JSON.parse(resultData);
+                return parsed?.summary || 'No summary available';
+              } else if (resultData && typeof resultData === 'object') {
+                return (resultData as SummaryResultData)?.summary || 'No summary available';
+              }
+              return 'No summary available';
+            } catch (error) {
+              console.error('Error parsing result_data:', error);
+              return 'No summary available';
+            }
+          })(),
           contentType: 'pdf',
         source: {
             title: summary.title,
@@ -150,7 +201,7 @@ export default function PDFSummarizerPage() {
         </div>
         <Button 
           onClick={handleCreateNew}
-          className="bg-red-600 hover:bg-red-500 text-white"
+          className="bg-blue-600 hover:bg-blue-500 text-white"
         >
           <Plus className="h-4 w-4 mr-2" />
           Create New Summary
@@ -183,6 +234,7 @@ export default function PDFSummarizerPage() {
         />
       </div>
 
+      {/* PDF Summaries Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Panel - Summary List */}
         <div className="lg:col-span-1">
@@ -199,6 +251,24 @@ export default function PDFSummarizerPage() {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto"></div>
                   <p className="text-muted-foreground mt-2">Loading summaries...</p>
                 </div>
+              ) : !backendAvailable ? (
+                <div className="text-center py-8">
+                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <AlertCircle className="h-6 w-6 text-red-600" />
+                  </div>
+                  <h3 className="font-medium mb-2 text-red-900">Backend Server Unavailable</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    The backend server is not responding. Please ensure the server is running on http://localhost:8000
+                  </p>
+                  <div className="space-y-2">
+                    <Button onClick={() => loadPdfSummaries(searchTerm)} size="sm" variant="outline">
+                      Retry Connection
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      Check the browser console for more details
+                    </p>
+                  </div>
+                </div>
               ) : pdfSummaries.length === 0 ? (
                 <div className="text-center py-8">
                   <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -211,7 +281,7 @@ export default function PDFSummarizerPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="max-h-96 overflow-y-auto space-y-3 pr-2">
                   {pdfSummaries.map((summary) => (
                     <div
                       key={summary.id}
@@ -265,24 +335,38 @@ export default function PDFSummarizerPage() {
           {selectedSummary ? (
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-gray-100">
                   <FileText className="h-5 w-5" />
                   {selectedSummary.title}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                   <div>
-                  <h4 className="font-medium mb-2">Description</h4>
-                  <p className="text-sm text-muted-foreground">
+                  <h4 className="font-medium mb-2 text-gray-900 dark:text-gray-100">Description</h4>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">
                     {selectedSummary.description || 'No description available'}
                   </p>
                 </div>
 
                   <div>
-                  <h4 className="font-medium mb-2">Summary</h4>
-                  <div className="bg-muted p-4 rounded-lg">
-                    <p className="text-sm">
-                      {(selectedSummary.result_data as unknown as SummaryResultData)?.summary || 'No summary available'}
+                  <h4 className="font-medium mb-2 text-gray-900 dark:text-gray-100">Summary</h4>
+                  <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border max-h-64 overflow-y-auto">
+                    <p className="text-sm text-gray-900 dark:text-gray-100">
+                      {(() => {
+                        try {
+                          const resultData = selectedSummary.result_data;
+                          if (typeof resultData === 'string') {
+                            const parsed = JSON.parse(resultData);
+                            return parsed?.summary || 'No summary available';
+                          } else if (resultData && typeof resultData === 'object') {
+                            return (resultData as SummaryResultData)?.summary || 'No summary available';
+                          }
+                          return 'No summary available';
+                        } catch (error) {
+                          console.error('Error parsing result_data:', error);
+                          return 'No summary available';
+                        }
+                      })()}
                     </p>
                   </div>
                 </div>
@@ -317,9 +401,15 @@ export default function PDFSummarizerPage() {
             </Card>
           ) : (
             <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Summary Details
+                </CardTitle>
+              </CardHeader>
               <CardContent className="text-center py-12">
                 <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="font-medium mb-2">Select a PDF Summary</h3>
+                <h3 className="font-medium mb-2">No Summary Selected</h3>
                 <p className="text-sm text-muted-foreground">
                   Choose a summary from the list to view details
                 </p>

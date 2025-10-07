@@ -49,6 +49,12 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
         localStorage.removeItem('remembered_email');
         localStorage.removeItem('remember_me');
       }
+      
+      // Clear any previous errors
+      clearError();
+      
+      // The login function will handle the state update and redirect
+      // No need to manually redirect here as the ProtectedRoute will handle it
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {

@@ -16,8 +16,15 @@ function Topbar() {
   const handleLogout = async () => {
     try {
       await logout();
+      // The logout function will handle the redirect
     } catch (error) {
       console.error('Logout failed:', error);
+      // Even if logout fails, we should still clear local state
+      // The logout function handles this in the finally block
+      // Force redirect even if there was an error
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
     }
   };
 

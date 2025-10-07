@@ -197,9 +197,6 @@ export default function PDFAnalysisPage() {
               onLoad={() => console.log('PDF loaded successfully')}
               onError={() => console.error('PDF failed to load:', pdfUrl)}
             />
-            <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
-              PDF URL: {pdfUrl}
-            </div>
           </div>
         </div>
 

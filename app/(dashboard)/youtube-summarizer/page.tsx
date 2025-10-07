@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import LinkInput from "@/components/ui/link-input";
 import ResultDisplay, { SummaryResult } from "@/components/ui/result-display";
-import { summarizeApi, type SummarizeRequest, type SummarizeResponse } from "@/lib/api-client";
+import { summarizeApi, aiToolsApi, type SummarizeRequest, type SummarizeResponse } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications";
 import { Youtube, ArrowLeft, Settings, Brain } from "lucide-react";
@@ -31,6 +31,13 @@ export default function YouTubeSummarizerPage() {
       return;
     }
 
+    // Validate YouTube URL
+    const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)[\w-]+/;
+    if (!youtubeRegex.test(inputValue.trim())) {
+      showError("Error", "Please enter a valid YouTube URL (e.g., https://www.youtube.com/watch?v=...)");
+      return;
+    }
+
     setIsLoading(true);
     setResult(null);
 
@@ -48,15 +55,54 @@ export default function YouTubeSummarizerPage() {
         }
       };
 
+      console.log('YouTube Summarize Request:', request);
       const response: SummarizeResponse = await summarizeApi.summarize(request);
+      console.log('YouTube Summarize Response:', response);
       
       if (response.error) {
+        console.error('YouTube Summarize Error:', response.error);
         showError("Error", response.error);
         return;
       }
 
       if (!response.summary) {
-        showError("Error", "No summary generated");
+        console.error('No summary in response:', response);
+        
+        // Try fallback to dedicated YouTube API
+        console.log('Trying fallback YouTube API...');
+        try {
+          const fallbackResponse = await aiToolsApi.summarizeYouTube(inputValue.trim(), language, "detailed");
+          console.log('Fallback YouTube API Response:', fallbackResponse);
+          
+          if (fallbackResponse.summary) {
+            const summaryResult: SummaryResult = {
+              id: Date.now().toString(),
+              content: fallbackResponse.summary,
+              contentType: "youtube",
+              source: {
+                title: fallbackResponse.video_info?.title || "YouTube Video",
+                url: inputValue,
+                author: fallbackResponse.video_info?.channel,
+                views: fallbackResponse.video_info?.views,
+              },
+              metadata: {
+                processingTime: 0,
+                wordCount: 0,
+                confidence: 0.95,
+                language: language
+              },
+              timestamp: new Date()
+            };
+
+            setResult(summaryResult);
+            showSuccess("Success", "YouTube video summarized successfully!");
+            return;
+          }
+        } catch (fallbackError) {
+          console.error('Fallback API also failed:', fallbackError);
+        }
+        
+        showError("Error", "No summary generated. Please check if the YouTube URL is valid and the video is accessible.");
         return;
       }
       
