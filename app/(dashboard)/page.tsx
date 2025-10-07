@@ -1,4 +1,4 @@
-import { Home, Youtube, FileText, MessageCircle, PenTool, Calculator, BookOpen, Network, ArrowRight, Sparkles, Presentation } from "lucide-react";
+import { Youtube, FileText, MessageCircle, PenTool, Calculator, BookOpen, Network, ArrowRight, Sparkles, Presentation } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,13 +6,6 @@ import { Button } from "@/components/ui/button";
 export default function DashboardPage() {
   return (
     <>
-      {/* Breadcrumb */}
-      <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-6">
-        <Home className="h-4 w-4" />
-        <span>/</span>
-        <span className="text-foreground font-medium">Dashboard</span>
-      </div>
-
       {/* Welcome Section */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Welcome to AI Dashboard</h1>

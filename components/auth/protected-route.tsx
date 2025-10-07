@@ -16,10 +16,22 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     setIsMounted(true);
   }, []);
 
-  // Always show loading until mounted and auth state is restored
-  if (!isMounted || !isAuthRestored || isLoading) {
+  // Always show loading until mounted to prevent hydration mismatch
+  if (!isMounted) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading during auth restoration
+  if (!isAuthRestored || isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="text-center space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
           <p className="text-muted-foreground">Loading...</p>

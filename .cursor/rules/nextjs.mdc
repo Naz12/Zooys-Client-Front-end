@@ -1,8 +1,11 @@
 ---
 alwaysApply: true
 ---
-use mock data only when i tell you to use
-Follow mobile first approach for everything
+use mock data only when i tell you to use.
+
+Avoid overengineering; prefer simple solutions.
+
+Follow mobile first approach for everything.
 
 Reuse existing code/components before creating new ones.
 
@@ -22,5 +25,5 @@ Follow consistent naming and file structure.
 
 Keep UI consistent with Tailwind + shadcn design system.
 
-Avoid overengineering; prefer simple solutions.
+
 

@@ -13,13 +13,31 @@ import {
   CreditCard,
   Brain,
   Presentation,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { memo } from "react";
+import { memo, useState, useEffect } from "react";
 
 function Sidebar() {
   const pathname = usePathname();
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Mobile-first: start collapsed on mobile, expanded on desktop
+  useEffect(() => {
+    const checkScreenSize = () => {
+      if (window.innerWidth < 768) {
+        setIsCollapsed(true);
+      } else {
+        setIsCollapsed(false);
+      }
+    };
+
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   const navItems = [
     { label: "Dashboard", href: "/", icon: <Home size={18} /> },
@@ -35,12 +53,25 @@ function Sidebar() {
   ];
 
   return (
-    <aside className="bg-background border-r border-border w-64 min-h-screen p-4 flex flex-col justify-between">
-      {/* Logo */}
-      <div>
-        <h1 className="text-2xl font-extrabold bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent mb-8">
-          Zooys
-        </h1>
+    <aside className={`bg-background border-r border-border min-h-screen flex flex-col justify-between transition-all duration-300 ${
+      isCollapsed ? 'w-16' : 'w-64'
+    } flex-shrink-0`}>
+      {/* Header with Logo and Toggle */}
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-8">
+          {!isCollapsed && (
+            <h1 className="text-2xl font-extrabold bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent">
+              Zooys
+            </h1>
+          )}
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="p-2 rounded-lg hover:bg-muted transition-colors flex-shrink-0"
+            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+          </button>
+        </div>
 
         {/* Navigation */}
         <nav className="space-y-2">
@@ -54,11 +85,13 @@ function Sidebar() {
                 className={`
                   relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium
                   overflow-hidden group transition-all duration-200 w-full text-left
+                  ${isCollapsed ? 'justify-center' : ''}
                   ${isActive 
                     ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white' 
                     : 'hover:bg-gradient-to-r hover:from-indigo-500 hover:to-purple-500 hover:opacity-80'
                   }
                 `}
+                title={isCollapsed ? item.label : undefined}
               >
                 {/* Gradient sweep background for non-active items */}
                 {!isActive && (
@@ -72,7 +105,7 @@ function Sidebar() {
                 )}
                 <span className="relative z-10 flex items-center gap-3">
                   {item.icon}
-                  {item.label}
+                  {!isCollapsed && item.label}
                 </span>
               </Link>
             );
@@ -81,25 +114,33 @@ function Sidebar() {
       </div>
 
       {/* Account & Settings */}
-      <div className="space-y-2 mt-6">
+      <div className="space-y-2 mt-6 px-4">
         <Link
           href="/profile"
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium hover:bg-muted transition-colors"
+          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium hover:bg-muted transition-colors ${
+            isCollapsed ? 'justify-center' : ''
+          }`}
+          title={isCollapsed ? "Profile" : undefined}
         >
           <User size={18} />
-          Profile
+          {!isCollapsed && "Profile"}
         </Link>
         <Link
           href="/subscription"
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium hover:bg-muted transition-colors"
+          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium hover:bg-muted transition-colors ${
+            isCollapsed ? 'justify-center' : ''
+          }`}
+          title={isCollapsed ? "Subscription" : undefined}
         >
           <CreditCard size={18} />
-          Subscription
+          {!isCollapsed && "Subscription"}
         </Link>
       </div>
 
       {/* Footer */}
-      <div className="text-xs text-muted-foreground mt-6">© 2025 Zooys      </div>
+      {!isCollapsed && (
+        <div className="text-xs text-muted-foreground mt-6 px-4">© 2025 Zooys</div>
+      )}
     </aside>
   );
 }

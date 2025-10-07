@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useReducer, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState, ReactNode, useCallback } from 'react';
 
 // Types
 interface User {
@@ -123,6 +123,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isClient, setIsClient] = useState(false);
   const [isAuthRestored, setIsAuthRestored] = useState(false);
 
+  // API helper function
+  const apiCall = useCallback(async (endpoint: string, options: RequestInit = {}) => {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const config: RequestInit = {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+      ...options,
+    };
+
+    if (state.token) {
+      config.headers = {
+        ...config.headers,
+        Authorization: `Bearer ${state.token}`,
+      };
+    }
+
+    const response = await fetch(url, config);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'An error occurred' }));
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+
+    return response.json();
+  }, [state.token]);
+
+  // Logout function
+  const logout = useCallback(async () => {
+    try {
+      if (state.token) {
+        await apiCall('/logout', {
+          method: 'POST',
+        });
+      }
+    } catch (error) {
+      console.error('Logout API call failed:', error);
+    } finally {
+      // Clear local storage
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('token_expires_at');
+      
+      // Only clear remember me if user explicitly logs out
+      // (not on session expiry)
+      const rememberMe = localStorage.getItem('remember_me') === 'true';
+      if (!rememberMe) {
+        localStorage.removeItem('remembered_email');
+        localStorage.removeItem('remember_me');
+      }
+      
+      dispatch({ type: 'AUTH_LOGOUT' });
+    }
+  }, [state.token, apiCall]);
+
   // Set client flag to prevent hydration mismatch
   useEffect(() => {
     setIsClient(true);
@@ -198,7 +255,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const interval = setInterval(checkInactivity, 60000); // Check every minute
     return () => clearInterval(interval);
-  }, [state.isAuthenticated, state.lastActivity]);
+  }, [state.isAuthenticated, state.lastActivity, logout]);
 
   // Update activity on user interaction
   useEffect(() => {
@@ -220,33 +277,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [state.isAuthenticated]);
 
-  // API helper function
-  const apiCall = async (endpoint: string, options: RequestInit = {}) => {
-    const url = `${API_BASE_URL}${endpoint}`;
-    const config: RequestInit = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-      ...options,
-    };
-
-    if (state.token) {
-      config.headers = {
-        ...config.headers,
-        Authorization: `Bearer ${state.token}`,
-      };
-    }
-
-    const response = await fetch(url, config);
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'An error occurred' }));
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-    }
-
-    return response.json();
-  };
 
   // Login function
   const login = async (email: string, password: string, rememberMe: boolean = false) => {
@@ -308,34 +338,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Logout function
-  const logout = async () => {
-    try {
-      if (state.token) {
-        await apiCall('/logout', {
-          method: 'POST',
-        });
-      }
-    } catch (error) {
-      console.error('Logout API call failed:', error);
-    } finally {
-      // Clear local storage
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('token_expires_at');
-      
-      // Only clear remember me if user explicitly logs out
-      // (not on session expiry)
-      const rememberMe = localStorage.getItem('remember_me') === 'true';
-      if (!rememberMe) {
-        localStorage.removeItem('remembered_email');
-        localStorage.removeItem('remember_me');
-      }
-      
-      dispatch({ type: 'AUTH_LOGOUT' });
-    }
-  };
 
   // Clear error function
   const clearError = () => {
