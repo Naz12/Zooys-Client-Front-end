@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Calculator, History, ChevronLeft, ChevronRight, FileText, Clock, Clipboard } from "lucide-react";
 import { useNotifications } from "@/lib/notifications";
 import { mathApi, type MathProblem } from "@/lib/math-api-client";
+import EnhancedMathInput from "./enhanced-math-input";
 
 export default function MathDashboard() {
   const [isLoading, setIsLoading] = useState(false);
@@ -590,18 +591,14 @@ Method: ${solution.solution_method}
 
             {/* Text Input Mode */}
             {!isImageMode && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Enter your math problem:
-                </label>
-                <textarea
-                  value={questionText}
-                  onChange={(e) => setQuestionText(e.target.value)}
-                  placeholder="Enter your math question here... (e.g., Solve for x: 2x + 5 = 13)"
-                  className="w-full min-h-[120px] rounded-md border border-border bg-background px-3 py-2 text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  rows={5}
-                />
-              </div>
+              <EnhancedMathInput
+                value={questionText}
+                onChange={setQuestionText}
+                placeholder="Enter your math question here... (e.g., \\sqrt{4} + \\infty - \\pm x^2 = 0)"
+                showPreview={true}
+                showKeyboard={true}
+                maxLength={1000}
+              />
             )}
 
             {/* Image Upload Mode */}
