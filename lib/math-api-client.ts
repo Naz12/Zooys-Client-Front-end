@@ -2,11 +2,14 @@ import { ApiClient } from './api-client';
 
 export interface MathProblem {
   id: number;
-  problem_text: string;
+  problem_text: string | null;
   problem_image: string | null;
+  file_url?: string;
   subject_area: string;
   difficulty_level: string;
+  problem_type?: 'text' | 'image';
   created_at: string;
+  solutions?: MathSolution[];
 }
 
 export interface MathSolution {
@@ -23,8 +26,6 @@ export interface MathProblemRequest {
   problem_text: string;
   subject_area?: string;
   difficulty_level?: string;
-  problem_type?: 'text' | 'image';
-  problem_image?: string;
 }
 
 export interface MathProblemResponse {
@@ -38,28 +39,31 @@ export interface MathProblemResponse {
   };
 }
 
-export interface MathSolveRequest {
-  problem_id: number;
-  user_solution: string;
+export interface MathProblemsResponse {
+  math_problems: MathProblem[];
+  pagination: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
 }
 
-export interface MathSolveResponse {
-  correct: boolean;
-  user_solution: string;
-  correct_solution?: string;
-  explanation: string;
-  points_earned?: number;
+export interface MathProblemDetailResponse {
+  math_problem: MathProblem;
 }
 
-export interface MathHelpRequest {
-  problem_id: number;
-  question: string;
+export interface MathHistoryParams {
+  per_page?: number;
+  subject?: string;
+  difficulty?: string;
 }
 
-export interface MathHelpResponse {
-  help: string;
-  hint: string;
-  next_step?: string;
+export interface MathProblemsParams {
+  page?: number;
+  per_page?: number;
+  subject?: string;
+  difficulty?: string;
 }
 
 export interface MathStats {
@@ -67,25 +71,12 @@ export interface MathStats {
   problems_by_subject: Record<string, number>;
   problems_by_difficulty: Record<string, number>;
   recent_activity: Array<{
-    id: number;
-    problem_text: string;
-    subject_area: string;
-    difficulty_level: string;
-    created_at: string;
+    date: string;
+    count: number;
   }>;
   success_rate: number;
 }
 
-export interface MathUpdateRequest {
-  topic: string;
-  difficulty: string;
-}
-
-export interface MathUpdateResponse {
-  id: number;
-  problem: string;
-  updated: boolean;
-}
 
 export interface MathDeleteResponse {
   message: string;
@@ -106,38 +97,64 @@ class MathApiClient {
   }
 
   /**
-   * Solve a math problem
+   * Solve a math problem from an image
    */
-  async solveProblem(request: MathSolveRequest): Promise<MathSolveResponse> {
-    return this.apiClient.post<MathSolveResponse>('/math/solve', request);
+  async solveMathProblemWithImage(
+    imageFile: File, 
+    subjectArea: string = 'maths',
+    difficultyLevel: string = 'intermediate'
+  ): Promise<MathProblemResponse> {
+    console.log('Creating FormData with image:', imageFile.name, imageFile.size);
+    
+    const formData = new FormData();
+    formData.append('problem_image', imageFile);
+    formData.append('subject_area', subjectArea);
+    formData.append('difficulty_level', difficultyLevel);
+
+    console.log('FormData created with:', {
+      problem_image: imageFile.name,
+      subject_area: subjectArea,
+      difficulty_level: difficultyLevel
+    });
+
+    return this.apiClient.post<MathProblemResponse>('/math/solve', formData);
   }
+
 
   /**
    * Get math problem history
    */
-  async getHistory(): Promise<MathProblem[]> {
-    return this.apiClient.get<MathProblem[]>('/math/history');
+  async getHistory(params?: MathHistoryParams): Promise<MathProblem[]> {
+    const queryParams = new URLSearchParams();
+    if (params?.per_page) queryParams.append('per_page', params.per_page.toString());
+    if (params?.subject) queryParams.append('subject', params.subject);
+    if (params?.difficulty) queryParams.append('difficulty', params.difficulty);
+    
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `/math/history?${queryString}` : '/math/history';
+    return this.apiClient.get<MathProblem[]>(endpoint);
   }
 
   /**
-   * Get available math topics
+   * Get paginated math problems
    */
-  async getTopics(): Promise<string[]> {
-    return this.apiClient.get<string[]>('/client/math/topics');
+  async getProblems(params?: MathProblemsParams): Promise<MathProblemsResponse> {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.per_page) queryParams.append('per_page', params.per_page.toString());
+    if (params?.subject) queryParams.append('subject', params.subject);
+    if (params?.difficulty) queryParams.append('difficulty', params.difficulty);
+    
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `/math/problems?${queryString}` : '/math/problems';
+    return this.apiClient.get<MathProblemsResponse>(endpoint);
   }
 
   /**
-   * Get available difficulty levels
+   * Get a specific math problem by ID with solutions
    */
-  async getDifficulties(): Promise<string[]> {
-    return this.apiClient.get<string[]>('/client/math/difficulties');
-  }
-
-  /**
-   * Get a specific math problem by ID
-   */
-  async getProblem(id: number): Promise<MathProblem> {
-    return this.apiClient.get<MathProblem>(`/math/problems/${id}`);
+  async getProblem(id: number): Promise<MathProblemDetailResponse> {
+    return this.apiClient.get<MathProblemDetailResponse>(`/math/problems/${id}`);
   }
 
   /**
@@ -147,12 +164,6 @@ class MathApiClient {
     return this.apiClient.delete<MathDeleteResponse>(`/math/problems/${id}`);
   }
 
-  /**
-   * Update a math problem
-   */
-  async updateProblem(id: number, request: MathUpdateRequest): Promise<MathUpdateResponse> {
-    return this.apiClient.put<MathUpdateResponse>(`/math/problems/${id}`, request);
-  }
 
   /**
    * Get math statistics
@@ -161,12 +172,6 @@ class MathApiClient {
     return this.apiClient.get<MathStats>('/math/stats');
   }
 
-  /**
-   * Get help for a math problem
-   */
-  async getHelp(request: MathHelpRequest): Promise<MathHelpResponse> {
-    return this.apiClient.post<MathHelpResponse>('/math/help', request);
-  }
 }
 
 // Export singleton instance

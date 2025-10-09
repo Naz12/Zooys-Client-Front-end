@@ -61,9 +61,12 @@ export class ApiClient {
 
     const config: RequestInit = {
       headers: {
-        'Content-Type': 'application/json',
         'Accept': 'application/json',
         'Origin': 'http://localhost:3000',
+        // Don't set Content-Type for FormData - let browser set it
+        ...(options.body instanceof FormData ? {} : {
+          'Content-Type': 'application/json'
+        }),
         ...options.headers,
       },
       redirect: 'manual', // Prevent automatic redirects on 401/403 responses
@@ -80,12 +83,21 @@ export class ApiClient {
     console.log('API Request Config:', {
       method: config.method || 'GET',
       headers: config.headers,
-      body: config.body ? JSON.parse(config.body as string) : undefined
+      body: config.body instanceof FormData ? 'FormData' : (config.body ? JSON.parse(config.body as string) : undefined)
     });
     
     // Log the full request body separately for better visibility
-    if (config.body) {
+    if (config.body && !(config.body instanceof FormData)) {
       console.log('Request Body:', JSON.parse(config.body as string));
+    } else if (config.body instanceof FormData) {
+      console.log('Request Body: FormData with entries:');
+      for (let [key, value] of config.body.entries()) {
+        if (value instanceof File) {
+          console.log(`  ${key}: File(${value.name}, ${value.size} bytes, ${value.type})`);
+        } else {
+          console.log(`  ${key}: ${value}`);
+        }
+      }
     }
 
     try {
@@ -197,7 +209,7 @@ export class ApiClient {
   async post<T>(endpoint: string, data?: any): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'POST',
-      body: data ? JSON.stringify(data) : undefined,
+      body: data instanceof FormData ? data : (data ? JSON.stringify(data) : undefined),
     });
   }
 
@@ -205,7 +217,7 @@ export class ApiClient {
   async put<T>(endpoint: string, data?: any): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'PUT',
-      body: data ? JSON.stringify(data) : undefined,
+      body: data instanceof FormData ? data : (data ? JSON.stringify(data) : undefined),
     });
   }
 
