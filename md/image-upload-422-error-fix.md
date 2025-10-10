@@ -177,3 +177,4 @@ const config: RequestInit = {
 The 422 error has been resolved! Image uploads now work correctly with proper FormData handling. 🎯📸
 
 
+

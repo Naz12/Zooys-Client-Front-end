@@ -1,6 +1,9 @@
 ---
 alwaysApply: true
 ---
+
+C:\xampp\htdocs\zooys_backend_laravel-main\agent-communication use this path to communicate with the backend agent when needed. use this for multi file communication with the backend agent
+
 use mock data only when i tell you to use.
 
 Avoid overengineering; prefer simple solutions.

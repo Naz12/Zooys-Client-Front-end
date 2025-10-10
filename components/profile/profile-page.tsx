@@ -73,7 +73,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Navigation Header */}
       <PageNavigation title="Profile Settings" />
 

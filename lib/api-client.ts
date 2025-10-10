@@ -104,7 +104,16 @@ export class ApiClient {
       console.log(`Making request to: ${url}`);
       console.log(`Request config:`, config);
       
-      const response = await fetch(url, config);
+      // Add timeout for PowerPoint generation (30 seconds)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      
+      const response = await fetch(url, {
+        ...config,
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
       
       // Handle redirect responses (status 0 indicates a redirect was blocked)
       // Only treat as redirect if it's actually a redirect, not a 401/403 response
@@ -194,6 +203,10 @@ export class ApiClient {
       return response.json();
     } catch (error) {
       if (error instanceof Error) {
+        // Handle timeout errors specifically
+        if (error.name === 'AbortError') {
+          throw new Error('Request timeout - PowerPoint generation is taking longer than expected. Please try again.');
+        }
         throw error;
       }
       throw new Error('Network error occurred');
@@ -343,6 +356,10 @@ export class ApiClient {
       return response.json();
     } catch (error) {
       if (error instanceof Error) {
+        // Handle timeout errors specifically
+        if (error.name === 'AbortError') {
+          throw new Error('Request timeout - PowerPoint generation is taking longer than expected. Please try again.');
+        }
         throw error;
       }
       throw new Error('Network error occurred');

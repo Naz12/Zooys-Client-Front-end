@@ -1,0 +1,66 @@
+# Cursor Rules for Note GPT Dashboard
+
+## Backend Communication System
+
+### Multi-File Agent Communication
+- **Backend Path:** `C:\xampp\htdocs\zooys_backend_laravel-main\agent-communication`
+- **System Type:** Multi-file agent communication system
+- **Usage:** When requesting tasks, use the files in this directory for communication
+
+### Communication Files Structure:
+- `frontend-requests.md` - Frontend agent writes requests here
+- `backend-responses.md` - Backend agent writes responses here
+- `api-contracts.md` - Shared API definitions and contracts
+- `status-updates.md` - Project status and progress updates
+- `error-log.md` - Error tracking and debugging
+- `communication-log.md` - General communication history
+- `README.md` - Usage instructions
+
+### How to Use:
+1. **For Frontend Agent:**
+   - Read `backend-responses.md` to see backend responses
+   - Write requests in `frontend-requests.md`
+   - Update `status-updates.md` with frontend progress
+   - Log errors in `error-log.md`
+
+2. **For Backend Agent:**
+   - Read `frontend-requests.md` to see frontend requests
+   - Write responses in `backend-responses.md`
+   - Update `api-contracts.md` with API changes
+   - Update `status-updates.md` with backend progress
+   - Log errors in `error-log.md`
+
+## Development Guidelines
+
+### Tech Stack
+- Next.js, React, Tailwind, shadcn, React Query
+- Mobile first approach
+- TypeScript strict typing
+- Reuse existing components before creating new ones
+
+### Code Standards
+- Avoid overengineering; prefer simple solutions
+- Keep components small, focused, and reusable
+- Always add loading states for async actions
+- Always handle errors with try/catch and user feedback
+- Centralize API calls in shared utilities/hooks
+- Follow consistent naming and file structure
+- Keep UI consistent with Tailwind + shadcn design system
+
+### File Organization
+- Create .md files in md/ folder in root directory
+- Create test files in test/ folder in root directory
+- Search for existing code before creating new functions or components
+- Refactor duplicated code into reusable components, hooks, or utilities
+
+### Data Usage
+- Use mock data only when explicitly told to use
+- Don't use mock data without asking first
+- Validate inputs on both client and server
+- Avoid unnecessary dependencies
+
+### Testing
+- Write lightweight tests for critical business logic and APIs
+- Ensure proper error handling in all async logic
+- Always provide meaningful loading states for async actions
+
