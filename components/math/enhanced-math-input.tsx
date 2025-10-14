@@ -342,27 +342,6 @@ export default function EnhancedMathInput({
             </div>
           )}
 
-          {/* Test and Keyboard Controls */}
-          <div className="flex justify-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onChange("\\sqrt{4} + \\infty - \\pm x^2 = 0")}
-              className="flex items-center gap-2"
-            >
-              Test Symbols
-            </Button>
-            {showKeyboard && (
-              <Button
-                variant="outline"
-                onClick={() => setIsKeyboardVisible(!isKeyboardVisible)}
-                className="flex items-center gap-2"
-              >
-                <Calculator size={16} />
-                {isKeyboardVisible ? "Hide Calculator" : "Show Calculator"}
-              </Button>
-            )}
-          </div>
         </CardContent>
       </Card>
 

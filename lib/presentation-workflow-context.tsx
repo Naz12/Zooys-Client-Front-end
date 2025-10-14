@@ -68,7 +68,7 @@ const initialState: WorkflowState = {
     language: 'English',
     tone: 'Professional',
     length: 'Medium',
-    model: 'Basic Model',
+    model: 'gpt-3.5-turbo',
     file: null,
     url: '',
     youtubeUrl: '',

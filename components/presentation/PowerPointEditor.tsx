@@ -136,15 +136,12 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
       if (!presentationId) return;
       
       try {
-        setIsSaving(true);
         const response = await presentationApi.savePresentation(presentationId, presentationData);
         if (response.success) {
           setLastSaved(new Date());
         }
       } catch (error) {
         console.error('Auto-save failed:', error);
-      } finally {
-        setIsSaving(false);
       }
     }, 2000),
     [presentationId]
@@ -251,10 +248,17 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
     
     // Trigger auto-save
     const presentationData = {
-      title: initialOutline.title,
+      title: presentationTitle,
       slides: updatedSlides,
-      template: 'corporate_blue',
-      color_scheme: 'blue',
+      template: selectedTemplate,
+      color_scheme: selectedTemplate === 'corporate_blue' ? 'blue' : 
+                   selectedTemplate === 'modern_white' ? 'white' :
+                   selectedTemplate === 'creative_colorful' ? 'colorful' :
+                   selectedTemplate === 'minimalist_gray' ? 'gray' :
+                   selectedTemplate === 'academic_formal' ? 'dark' :
+                   selectedTemplate === 'tech_modern' ? 'teal' :
+                   selectedTemplate === 'elegant_purple' ? 'purple' :
+                   selectedTemplate === 'professional_green' ? 'green' : 'blue',
       font_style: 'modern'
     };
     autoSave(presentationData);
@@ -330,9 +334,16 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
       
       if (response.success) {
         // Make download URL absolute by prepending backend server URL
-        const absoluteDownloadUrl = response.data.download_url.startsWith('http') 
+        let absoluteDownloadUrl = response.data.download_url.startsWith('http') 
           ? response.data.download_url 
           : `http://localhost:8000${response.data.download_url}`;
+        
+        // Add cache-busting parameter to ensure fresh download
+        const separator = absoluteDownloadUrl.includes('?') ? '&' : '?';
+        absoluteDownloadUrl += `${separator}t=${Date.now()}`;
+        
+        // Store the download URL for potential reuse
+        setDownloadUrl(absoluteDownloadUrl);
         
         // Trigger download
         window.open(absoluteDownloadUrl, '_blank');
@@ -355,11 +366,19 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
   const savePresentation = async () => {
     try {
       setIsSaving(true);
+      
       const presentationData = {
-        title: initialOutline.title,
+        title: presentationTitle,
         slides: slides,
-        template: 'corporate_blue',
-        color_scheme: 'blue',
+        template: selectedTemplate,
+        color_scheme: selectedTemplate === 'corporate_blue' ? 'blue' : 
+                     selectedTemplate === 'modern_white' ? 'white' :
+                     selectedTemplate === 'creative_colorful' ? 'colorful' :
+                     selectedTemplate === 'minimalist_gray' ? 'gray' :
+                     selectedTemplate === 'academic_formal' ? 'dark' :
+                     selectedTemplate === 'tech_modern' ? 'teal' :
+                     selectedTemplate === 'elegant_purple' ? 'purple' :
+                     selectedTemplate === 'professional_green' ? 'green' : 'blue',
         font_style: 'modern'
       };
       
@@ -368,6 +387,9 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
       if (response.success) {
         setLastSaved(new Date());
         showSuccess('Presentation saved successfully!');
+        
+        // Clear any cached download URL to force regeneration with updated content
+        setDownloadUrl(null);
         
         if (onSave) {
           onSave({ slides, presentationId });

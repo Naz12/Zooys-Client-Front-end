@@ -129,8 +129,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Origin': 'http://localhost:3000',
         ...options.headers,
       },
+      redirect: 'manual', // Prevent automatic redirects
       ...options,
     };
 
@@ -144,9 +147,96 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await fetch(url, config);
       
+      // Handle redirect responses (status 0 indicates a redirect was blocked)
+      if (response.status === 0 || (response.type === 'opaqueredirect')) {
+        throw new Error('Request was redirected. This usually indicates a network or CORS issue.');
+      }
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'An error occurred' }));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        let errorData;
+        let responseText;
+        
+        try {
+          // First, try to get the response as text to see what we're actually getting
+          responseText = await response.text();
+          console.log('Raw response text:', responseText);
+          
+          // Try to parse as JSON
+          if (responseText.trim()) {
+            errorData = JSON.parse(responseText);
+          } else {
+            // Empty response body
+            errorData = { 
+              message: `HTTP error! status: ${response.status} - Empty response body`,
+              status: response.status,
+              statusText: response.statusText,
+              emptyResponse: true
+            };
+          }
+        } catch (parseError) {
+          // Response is not valid JSON
+          errorData = { 
+            message: `HTTP error! status: ${response.status} - Invalid JSON response`,
+            status: response.status,
+            statusText: response.statusText,
+            rawResponse: responseText,
+            parseError: parseError instanceof Error ? parseError.message : 'Unknown parse error'
+          };
+        }
+        
+        // Create user-friendly error message
+        let userMessage = 'Something went wrong. Please try again.';
+        
+        // Extract specific error message from backend response if available
+        if (errorData && typeof errorData === 'object') {
+          if (errorData.message) {
+            userMessage = errorData.message;
+          } else if (errorData.errors) {
+            // Handle validation errors - extract first error message
+            const errorKeys = Object.keys(errorData.errors);
+            if (errorKeys.length > 0) {
+              const firstError = errorData.errors[errorKeys[0]];
+              if (Array.isArray(firstError) && firstError.length > 0) {
+                userMessage = firstError[0];
+              } else if (typeof firstError === 'string') {
+                userMessage = firstError;
+              }
+            }
+          }
+        }
+        
+        // Fallback to generic messages based on status code
+        if (response.status === 404) {
+          userMessage = 'The requested resource was not found. Please check if the service is available.';
+        } else if (response.status === 401) {
+          // For login endpoints, use the backend message if available, otherwise generic
+          if (endpoint === '/login' && errorData && errorData.message) {
+            userMessage = errorData.message;
+          } else {
+            userMessage = 'Authentication required. Please log in to access this feature.';
+          }
+        } else if (response.status === 403) {
+          userMessage = 'You do not have permission to access this resource.';
+        } else if (response.status === 500) {
+          userMessage = 'Server error occurred. Please try again later.';
+        } else if (response.status >= 400 && response.status < 500) {
+          // For 4xx errors, prefer backend message if available
+          if (errorData && errorData.message) {
+            userMessage = errorData.message;
+          } else {
+            userMessage = 'Invalid request. Please check your input and try again.';
+          }
+        } else if (response.status >= 500) {
+          userMessage = 'Server is temporarily unavailable. Please try again later.';
+        }
+        
+        const error = new Error(userMessage);
+        (error as any).status = response.status;
+        (error as any).response = errorData;
+        (error as any).rawResponse = responseText;
+        (error as any).userMessage = userMessage;
+        (error as any).fieldErrors = errorData?.errors || {};
+        throw error;
       }
 
       return response.json();
@@ -208,7 +298,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Restore authentication state on mount
   useEffect(() => {
     // Only run on client side to prevent hydration mismatch
-    if (!isClient || typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return;
     
     const restoreAuth = () => {
       try {
@@ -255,7 +345,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     restoreAuth();
-  }, [isClient]);
+  }, []);
 
   // Auto-logout on inactivity
   useEffect(() => {

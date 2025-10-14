@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth CORS Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔐 Authentication CORS Test</h1>
+    <p>This page tests the authentication endpoints and CORS configuration.</p>
+
+    <div class="test-section">
+        <h2>1. Backend Server Status</h2>
+        <button class="test-button" onclick="testBackendStatus()">Test Backend Status</button>
+        <div id="backend-status" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Login Endpoint Test</h2>
+        <button class="test-button" onclick="testLoginEndpoint()">Test Login Endpoint</button>
+        <div id="login-test" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. CORS Preflight Test</h2>
+        <button class="test-button" onclick="testCORSPreflight()">Test CORS Preflight</button>
+        <div id="cors-test" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Register Endpoint Test</h2>
+        <button class="test-button" onclick="testRegisterEndpoint()">Test Register Endpoint</button>
+        <div id="register-test" class="result"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000/api';
+
+        function displayResult(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `result ${type}`;
+        }
+
+        async function testBackendStatus() {
+            displayResult('backend-status', 'Testing backend status...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/presentations`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Origin': 'http://localhost:3000'
+                    }
+                });
+                
+                if (response.ok) {
+                    displayResult('backend-status', 
+                        `✅ Backend is running!\n` +
+                        `Status: ${response.status} ${response.statusText}\n` +
+                        `Headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2)}`, 
+                        'success'
+                    );
+                } else {
+                    displayResult('backend-status', 
+                        `❌ Backend responded with error\n` +
+                        `Status: ${response.status} ${response.statusText}\n` +
+                        `Headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2)}`, 
+                        'error'
+                    );
+                }
+            } catch (error) {
+                displayResult('backend-status', 
+                    `❌ Backend connection failed\n` +
+                    `Error: ${error.message}\n` +
+                    `This usually means the backend server is not running.`, 
+                    'error'
+                );
+            }
+        }
+
+        async function testLoginEndpoint() {
+            displayResult('login-test', 'Testing login endpoint...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Origin': 'http://localhost:3000'
+                    },
+                    body: JSON.stringify({
+                        email: 'test@example.com',
+                        password: 'testpassword'
+                    }),
+                    redirect: 'manual'
+                });
+                
+                let result = `Status: ${response.status} ${response.statusText}\n`;
+                result += `Type: ${response.type}\n`;
+                result += `URL: ${response.url}\n`;
+                result += `Headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2)}\n`;
+                
+                if (response.status === 0) {
+                    result += `\n❌ Request was redirected (CORS issue)\n`;
+                    result += `This indicates the backend is redirecting the request.`;
+                    displayResult('login-test', result, 'error');
+                } else if (response.ok) {
+                    try {
+                        const data = await response.json();
+                        result += `\n✅ Login endpoint working!\n`;
+                        result += `Response: ${JSON.stringify(data, null, 2)}`;
+                        displayResult('login-test', result, 'success');
+                    } catch (parseError) {
+                        result += `\n⚠️ Response is not JSON\n`;
+                        result += `Parse Error: ${parseError.message}`;
+                        displayResult('login-test', result, 'error');
+                    }
+                } else {
+                    try {
+                        const errorData = await response.text();
+                        result += `\n❌ Login endpoint error\n`;
+                        result += `Error Response: ${errorData}`;
+                        displayResult('login-test', result, 'error');
+                    } catch (parseError) {
+                        result += `\n❌ Login endpoint error (could not parse response)\n`;
+                        result += `Parse Error: ${parseError.message}`;
+                        displayResult('login-test', result, 'error');
+                    }
+                }
+            } catch (error) {
+                displayResult('login-test', 
+                    `❌ Login endpoint test failed\n` +
+                    `Error: ${error.message}\n` +
+                    `This could be a network or CORS issue.`, 
+                    'error'
+                );
+            }
+        }
+
+        async function testCORSPreflight() {
+            displayResult('cors-test', 'Testing CORS preflight...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/login`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Access-Control-Request-Method': 'POST',
+                        'Access-Control-Request-Headers': 'Content-Type, Authorization',
+                        'Origin': 'http://localhost:3000'
+                    }
+                });
+                
+                let result = `Status: ${response.status} ${response.statusText}\n`;
+                result += `Headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2)}\n`;
+                
+                if (response.ok) {
+                    result += `\n✅ CORS preflight successful!`;
+                    displayResult('cors-test', result, 'success');
+                } else {
+                    result += `\n❌ CORS preflight failed`;
+                    displayResult('cors-test', result, 'error');
+                }
+            } catch (error) {
+                displayResult('cors-test', 
+                    `❌ CORS preflight test failed\n` +
+                    `Error: ${error.message}`, 
+                    'error'
+                );
+            }
+        }
+
+        async function testRegisterEndpoint() {
+            displayResult('register-test', 'Testing register endpoint...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Origin': 'http://localhost:3000'
+                    },
+                    body: JSON.stringify({
+                        name: 'Test User',
+                        email: 'test@example.com',
+                        password: 'testpassword'
+                    }),
+                    redirect: 'manual'
+                });
+                
+                let result = `Status: ${response.status} ${response.statusText}\n`;
+                result += `Type: ${response.type}\n`;
+                result += `URL: ${response.url}\n`;
+                result += `Headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2)}\n`;
+                
+                if (response.status === 0) {
+                    result += `\n❌ Request was redirected (CORS issue)\n`;
+                    result += `This indicates the backend is redirecting the request.`;
+                    displayResult('register-test', result, 'error');
+                } else if (response.ok) {
+                    try {
+                        const data = await response.json();
+                        result += `\n✅ Register endpoint working!\n`;
+                        result += `Response: ${JSON.stringify(data, null, 2)}`;
+                        displayResult('register-test', result, 'success');
+                    } catch (parseError) {
+                        result += `\n⚠️ Response is not JSON\n`;
+                        result += `Parse Error: ${parseError.message}`;
+                        displayResult('register-test', result, 'error');
+                    }
+                } else {
+                    try {
+                        const errorData = await response.text();
+                        result += `\n❌ Register endpoint error\n`;
+                        result += `Error Response: ${errorData}`;
+                        displayResult('register-test', result, 'error');
+                    } catch (parseError) {
+                        result += `\n❌ Register endpoint error (could not parse response)\n`;
+                        result += `Parse Error: ${parseError.message}`;
+                        displayResult('register-test', result, 'error');
+                    }
+                }
+            } catch (error) {
+                displayResult('register-test', 
+                    `❌ Register endpoint test failed\n` +
+                    `Error: ${error.message}\n` +
+                    `This could be a network or CORS issue.`, 
+                    'error'
+                );
+            }
+        }
+
+        // Auto-run backend status test on page load
+        window.addEventListener('load', () => {
+            testBackendStatus();
+        });
+    </script>
+</body>
+</html>

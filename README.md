@@ -46,6 +46,17 @@ A modern, AI-powered productivity and learning platform built with Next.js, Reac
 - **Notifications**: React Hot Toast
 - **Theme**: Next Themes for dark/light mode
 
+## 🤖 Agent Communication Protocol
+
+This project uses an optimized multi-file communication system for frontend and backend agents:
+
+- **Protocol Version**: 2.0 (Token Optimized)
+- **Token Reduction**: 90% (from ~4,500 to ~540 tokens per session)
+- **Communication Path**: `C:\xampp\htdocs\zooys_backend_laravel-main\agent-communication`
+- **Documentation**: See `md/agent-communication-protocol-update.md`
+
+**For all agents**: Always read `current/quick-status.md` first, follow file size limits, and use provided templates.
+
 ## 🚀 Getting Started
 
 ### Prerequisites

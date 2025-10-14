@@ -1,12 +1,7 @@
 "use client";
 
-import { WorkflowProvider } from "@/lib/presentation-workflow-context";
-import { PresentationWorkflow } from "@/components/presentation/PresentationWorkflow";
+import { PresentationDashboard } from "@/components/presentation/PresentationDashboard";
 
 export default function PresentationPage() {
-  return (
-    <WorkflowProvider>
-      <PresentationWorkflow />
-    </WorkflowProvider>
-  );
+  return <PresentationDashboard />;
 }

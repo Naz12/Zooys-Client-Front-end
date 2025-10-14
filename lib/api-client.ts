@@ -156,16 +156,45 @@ export class ApiClient {
         // Create user-friendly error message
         let userMessage = 'Something went wrong. Please try again.';
         
+        // Extract specific error message from backend response if available
+        if (errorData && typeof errorData === 'object') {
+          if (errorData.message) {
+            userMessage = errorData.message;
+          } else if (errorData.errors) {
+            // Handle validation errors - extract first error message
+            const errorKeys = Object.keys(errorData.errors);
+            if (errorKeys.length > 0) {
+              const firstError = errorData.errors[errorKeys[0]];
+              if (Array.isArray(firstError) && firstError.length > 0) {
+                userMessage = firstError[0];
+              } else if (typeof firstError === 'string') {
+                userMessage = firstError;
+              }
+            }
+          }
+        }
+        
+        // Fallback to generic messages based on status code
         if (response.status === 404) {
           userMessage = 'The requested resource was not found. Please check if the service is available.';
         } else if (response.status === 401) {
-          userMessage = 'Authentication required. Please log in to access this feature.';
+          // For login endpoints, use the backend message if available, otherwise generic
+          if (endpoint === '/login' && errorData && errorData.message) {
+            userMessage = errorData.message;
+          } else {
+            userMessage = 'Authentication required. Please log in to access this feature.';
+          }
         } else if (response.status === 403) {
           userMessage = 'You do not have permission to access this resource.';
         } else if (response.status === 500) {
           userMessage = 'Server error occurred. Please try again later.';
         } else if (response.status >= 400 && response.status < 500) {
-          userMessage = 'Invalid request. Please check your input and try again.';
+          // For 4xx errors, prefer backend message if available
+          if (errorData && errorData.message) {
+            userMessage = errorData.message;
+          } else {
+            userMessage = 'Invalid request. Please check your input and try again.';
+          }
         } else if (response.status >= 500) {
           userMessage = 'Server is temporarily unavailable. Please try again later.';
         }
@@ -197,6 +226,7 @@ export class ApiClient {
         (error as any).response = errorData;
         (error as any).rawResponse = responseText;
         (error as any).userMessage = userMessage;
+        (error as any).fieldErrors = errorData?.errors || {};
         throw error;
       }
 
@@ -309,16 +339,45 @@ export class ApiClient {
         // Create user-friendly error message
         let userMessage = 'Something went wrong. Please try again.';
         
+        // Extract specific error message from backend response if available
+        if (errorData && typeof errorData === 'object') {
+          if (errorData.message) {
+            userMessage = errorData.message;
+          } else if (errorData.errors) {
+            // Handle validation errors - extract first error message
+            const errorKeys = Object.keys(errorData.errors);
+            if (errorKeys.length > 0) {
+              const firstError = errorData.errors[errorKeys[0]];
+              if (Array.isArray(firstError) && firstError.length > 0) {
+                userMessage = firstError[0];
+              } else if (typeof firstError === 'string') {
+                userMessage = firstError;
+              }
+            }
+          }
+        }
+        
+        // Fallback to generic messages based on status code
         if (response.status === 404) {
           userMessage = 'The requested resource was not found. Please check if the service is available.';
         } else if (response.status === 401) {
-          userMessage = 'Authentication required. Please log in to access this feature.';
+          // For login endpoints, use the backend message if available, otherwise generic
+          if (endpoint === '/login' && errorData && errorData.message) {
+            userMessage = errorData.message;
+          } else {
+            userMessage = 'Authentication required. Please log in to access this feature.';
+          }
         } else if (response.status === 403) {
           userMessage = 'You do not have permission to access this resource.';
         } else if (response.status === 500) {
           userMessage = 'Server error occurred. Please try again later.';
         } else if (response.status >= 400 && response.status < 500) {
-          userMessage = 'Invalid request. Please check your input and try again.';
+          // For 4xx errors, prefer backend message if available
+          if (errorData && errorData.message) {
+            userMessage = errorData.message;
+          } else {
+            userMessage = 'Invalid request. Please check your input and try again.';
+          }
         } else if (response.status >= 500) {
           userMessage = 'Server is temporarily unavailable. Please try again later.';
         }
@@ -350,6 +409,7 @@ export class ApiClient {
         (error as any).response = errorData;
         (error as any).rawResponse = responseText;
         (error as any).userMessage = userMessage;
+        (error as any).fieldErrors = errorData?.errors || {};
         throw error;
       }
 

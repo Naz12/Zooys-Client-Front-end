@@ -23,7 +23,7 @@ export interface GenerateOutlineRequest {
   language: 'English' | 'Spanish' | 'French' | 'German' | 'Italian' | 'Portuguese' | 'Chinese' | 'Japanese';
   tone: 'Professional' | 'Casual' | 'Academic' | 'Creative' | 'Formal';
   length: 'Short' | 'Medium' | 'Long';
-  model: 'Basic Model' | 'Advanced Model' | 'Premium Model';
+  model: 'gpt-3.5-turbo' | 'gpt-4';
   file?: File;
   url?: string;
   youtube_url?: string;

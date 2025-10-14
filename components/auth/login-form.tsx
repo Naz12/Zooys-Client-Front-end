@@ -17,6 +17,7 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const { login, clearError } = useAuth();
 
@@ -37,6 +38,7 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    setFieldErrors({});
 
     try {
       await login(email, password, rememberMe);
@@ -56,7 +58,16 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
       // The login function will handle the state update and redirect
       // No need to manually redirect here as the ProtectedRoute will handle it
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      const errorMessage = err instanceof Error ? err.message : 'Login failed';
+      setError(errorMessage);
+      
+      // Extract field-specific errors if available
+      if (err && typeof err === 'object' && 'fieldErrors' in err) {
+        const errors = (err as any).fieldErrors;
+        if (errors && typeof errors === 'object') {
+          setFieldErrors(errors);
+        }
+      }
     } finally {
       setIsLoading(false);
     }
@@ -64,12 +75,24 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setEmail(e.target.value);
-    if (error) clearError();
+    if (error) {
+      clearError();
+      setError('');
+    }
+    if (fieldErrors.email) {
+      setFieldErrors(prev => ({ ...prev, email: '' }));
+    }
   };
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPassword(e.target.value);
-    if (error) clearError();
+    if (error) {
+      clearError();
+      setError('');
+    }
+    if (fieldErrors.password) {
+      setFieldErrors(prev => ({ ...prev, password: '' }));
+    }
   };
 
   return (
@@ -93,7 +116,11 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
               onChange={handleEmailChange}
               required
               disabled={isLoading}
+              className={fieldErrors.email ? 'border-red-500 focus:border-red-500' : ''}
             />
+            {fieldErrors.email && (
+              <p className="text-sm text-red-600">{fieldErrors.email}</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -108,7 +135,11 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
               onChange={handlePasswordChange}
               required
               disabled={isLoading}
+              className={fieldErrors.password ? 'border-red-500 focus:border-red-500' : ''}
             />
+            {fieldErrors.password && (
+              <p className="text-sm text-red-600">{fieldErrors.password}</p>
+            )}
           </div>
 
           <div className="flex items-center space-x-2">

@@ -4,10 +4,11 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calculator, History, ChevronLeft, ChevronRight, FileText, Clock, Clipboard } from "lucide-react";
+import { Calculator, History, ChevronLeft, ChevronRight, FileText, Clock, Clipboard, Zap } from "lucide-react";
 import { useNotifications } from "@/lib/notifications";
 import { mathApi, type MathProblem } from "@/lib/math-api-client";
-import EnhancedMathInput from "./enhanced-math-input";
+import SimpleMathInput from "./simple-math-input";
+import SolutionRenderer from "./solution-renderer";
 
 export default function MathDashboard() {
   const [isLoading, setIsLoading] = useState(false);
@@ -24,7 +25,12 @@ export default function MathDashboard() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isImageMode, setIsImageMode] = useState(false);
 
+  // Tab state for switching between input modes
+  // Removed Akili input tab - using standard input only
+
   const { showSuccess, showError, showWarning } = useNotifications();
+
+  // Removed Akili export handler - no longer needed
 
   useEffect(() => {
     loadHistory();
@@ -550,11 +556,12 @@ Method: ${solution.solution_method}
           <p className="text-muted-foreground">
             Upload an image or enter a math question to get step-by-step solutions
           </p>
-          
         </div>
 
-      {/* Main Input Section */}
-      <div className="grid grid-cols-1 gap-6">
+        {/* Removed tab navigation - using standard input only */}
+
+        {/* Main Input Section */}
+        <div className="grid grid-cols-1 gap-6">
 
         {/* Input Mode Toggle */}
         <Card>
@@ -591,7 +598,7 @@ Method: ${solution.solution_method}
 
             {/* Text Input Mode */}
             {!isImageMode && (
-              <EnhancedMathInput
+              <SimpleMathInput
                 value={questionText}
                 onChange={setQuestionText}
                 placeholder="Enter your math question here... (e.g., \\sqrt{4} + \\infty - \\pm x^2 = 0)"
@@ -711,16 +718,14 @@ Method: ${solution.solution_method}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="bg-muted/50 rounded-lg p-4">
-              <pre className="whitespace-pre-wrap text-sm font-medium text-foreground">
-                {solution}
-              </pre>
-            </div>
+            <SolutionRenderer solution={solution} />
           </CardContent>
         </Card>
       )}
 
-      {/* Feature Cards */}
+        </div>
+
+        {/* Feature Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardContent className="p-6 text-center">
@@ -757,7 +762,6 @@ Method: ${solution.solution_method}
             </p>
           </CardContent>
         </Card>
-      </div>
       </div>
     </div>
   );

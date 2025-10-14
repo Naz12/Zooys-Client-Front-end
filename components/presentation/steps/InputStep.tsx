@@ -405,9 +405,8 @@ export function InputStep() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Basic Model">Basic Model</SelectItem>
-              <SelectItem value="Advanced Model">Advanced Model</SelectItem>
-              <SelectItem value="Premium Model">Premium Model</SelectItem>
+              <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
+              <SelectItem value="gpt-4">GPT-4</SelectItem>
             </SelectContent>
           </Select>
         </div>
