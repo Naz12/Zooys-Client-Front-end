@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Calculator, History, ChevronLeft, ChevronRight, FileText, Clock, Clipboard, Zap } from "lucide-react";
 import { useNotifications } from "@/lib/notifications";
 import { mathApi, type MathProblem } from "@/lib/math-api-client";
-import SimpleMathInput from "./simple-math-input";
+import MathGptInput from "./math-gpt-input";
 import SolutionRenderer from "./solution-renderer";
 
 export default function MathDashboard() {
@@ -23,7 +23,6 @@ export default function MathDashboard() {
   // Image upload state
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isImageMode, setIsImageMode] = useState(false);
 
   // Tab state for switching between input modes
   // Removed Akili input tab - using standard input only
@@ -40,21 +39,7 @@ export default function MathDashboard() {
     });
   }, []);
 
-  // Add keyboard shortcut for pasting images
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      // Check if Ctrl+V (or Cmd+V on Mac) is pressed and we're in image mode
-      if ((event.ctrlKey || event.metaKey) && event.key === 'v' && isImageMode) {
-        event.preventDefault();
-        handlePaste();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isImageMode]);
+  // Removed keyboard shortcut for pasting images - handled in MathGptInput
 
   const loadAvailableOptions = async () => {
     // For now, we'll use the default values that are already set
@@ -166,41 +151,42 @@ export default function MathDashboard() {
     }
   };
 
-  // Image upload handler
+  // Image upload handler for file input events
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        showError('Invalid file type', 'Please select an image file.');
-        return;
-      }
-
-      // Validate file size (10MB max)
-      if (file.size > 10 * 1024 * 1024) {
-        showError('File too large', 'Please select an image smaller than 10MB.');
-        return;
-      }
-
-      setSelectedImage(file);
-      
-      // Create preview
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setImagePreview(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
+      handleFileUpload(file);
     }
   };
 
-  const handleSolve = async () => {
-    if (isImageMode && !selectedImage) {
-      showError('No image selected', 'Please select an image to solve.');
+  // Direct file upload handler (for paste, drag & drop, etc.)
+  const handleFileUpload = (file: File) => {
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      showError('Invalid file type', 'Please select an image file.');
       return;
     }
 
-    if (!isImageMode && !questionText.trim()) {
-      showWarning("Warning", "Please enter a math question");
+    // Validate file size (10MB max)
+    if (file.size > 10 * 1024 * 1024) {
+      showError('File too large', 'Please select an image smaller than 10MB.');
+      return;
+    }
+
+    setSelectedImage(file);
+    
+    // Create preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setImagePreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSolve = async () => {
+    // Check if we have either text input or image
+    if (!questionText.trim() && !selectedImage) {
+      showWarning("Warning", "Please enter a math question or upload an image");
       return;
     }
 
@@ -210,7 +196,7 @@ export default function MathDashboard() {
 
 
       let response;
-      if (isImageMode && selectedImage) {
+      if (selectedImage) {
         // Handle image upload - call the actual API
         try {
           console.log("Attempting to solve math problem from image:", {
@@ -250,25 +236,14 @@ export default function MathDashboard() {
           
           setCurrentProblem(problem);
           
-          // Format the solution for display
-          const formattedSolution = `
-Problem: ${problem.problem_text || 'Image problem'}
-
-Solution:
-
-${solution.step_by_step_solution}
-
-Final Answer: ${solution.final_answer}
-
-Explanation: ${solution.explanation}
-
-Verification: ${solution.verification}
-
-Method: ${solution.solution_method}
-          `.trim();
+          // Pass the raw JSON response to SolutionRenderer for proper parsing
+          const rawSolution = JSON.stringify({
+            math_problem: problem,
+            math_solution: solution
+          });
           
           response = {
-            solution: formattedSolution,
+            solution: rawSolution,
             problem_id: problem.id
           };
           
@@ -325,21 +300,14 @@ Method: ${solution.solution_method}
               
               setCurrentProblem(problem);
               
-              // Format the solution for display
-              const formattedSolution = `
-${solution.step_by_step_solution}
-
-Final Answer: ${solution.final_answer}
-
-Explanation: ${solution.explanation}
-
-Verification: ${solution.verification}
-
-Method: ${solution.solution_method}
-              `.trim();
+              // Pass the raw JSON response to SolutionRenderer for proper parsing
+              const rawSolution = JSON.stringify({
+                math_problem: problem,
+                math_solution: solution
+              });
               
               response = {
-                solution: formattedSolution,
+                solution: rawSolution,
                 problem_id: problem.id
               };
               
@@ -381,7 +349,7 @@ Method: ${solution.solution_method}
           if (response.problem_id) {
             const newProblem: MathProblem = {
               id: response.problem_id,
-              problem_text: isImageMode ? `Image: ${selectedImage?.name}` : questionText,
+              problem_text: selectedImage ? `Image: ${selectedImage.name}` : questionText,
               subject_area: availableTopics[0] || "arithmetic",
               difficulty_level: availableDifficulties[0] || "beginner",
               created_at: new Date().toISOString()
@@ -397,7 +365,7 @@ Method: ${solution.solution_method}
     } finally {
       setIsLoading(false);
       // Clear image selection after processing
-      if (isImageMode) {
+      if (selectedImage) {
         setSelectedImage(null);
         setImagePreview(null);
       }
@@ -563,150 +531,24 @@ Method: ${solution.solution_method}
         {/* Main Input Section */}
         <div className="grid grid-cols-1 gap-6">
 
-        {/* Input Mode Toggle */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calculator className="text-green-600" size={20} />
-              Math Problem Input
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Mode Toggle */}
-            <div className="flex space-x-4">
-              <button
-                onClick={() => setIsImageMode(false)}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  !isImageMode 
-                    ? 'bg-blue-500 text-white' 
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              >
-                📝 Text Input
-              </button>
-              <button
-                onClick={() => setIsImageMode(true)}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  isImageMode 
-                    ? 'bg-blue-500 text-white' 
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              >
-                📸 Image Upload
-              </button>
-            </div>
-
-            {/* Text Input Mode */}
-            {!isImageMode && (
-              <SimpleMathInput
-                value={questionText}
-                onChange={setQuestionText}
-                placeholder="Enter your math question here... (e.g., \\sqrt{4} + \\infty - \\pm x^2 = 0)"
-                showPreview={true}
-                showKeyboard={true}
-                maxLength={1000}
-              />
-            )}
-
-            {/* Image Upload Mode */}
-            {isImageMode && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Upload an image of your math problem:
-                </label>
-                
-                {/* Paste Button */}
-                <div className="mb-3">
-                  <Button
-                    onClick={handlePaste}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    <Clipboard size={16} />
-                    Paste Image (Ctrl+V)
-                  </Button>
-                </div>
-
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                    id="image-upload"
-                  />
-                  <label
-                    htmlFor="image-upload"
-                    className="cursor-pointer block"
-                  >
-                    {imagePreview ? (
-                      <div>
-                        <img
-                          src={imagePreview}
-                          alt="Problem preview"
-                          className="max-w-full max-h-64 mx-auto mb-2 rounded-lg shadow-sm"
-                        />
-                        <p className="text-sm text-gray-600">
-                          Click to change image
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Selected: {selectedImage?.name}
-                        </p>
-                      </div>
-                    ) : (
-                      <div>
-                        <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                          <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        <p className="mt-2 text-sm text-gray-600">
-                          Click to upload an image of your math problem
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          PNG, JPG, GIF up to 10MB
-                        </p>
-                        <p className="text-xs text-blue-600 mt-1">
-                          Or paste from clipboard using Ctrl+V
-                        </p>
-                      </div>
-                    )}
-                  </label>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-        {/* Action Buttons */}
-        <div className="flex justify-center gap-4">
-          <Button
-            onClick={handleSolve}
-            disabled={isLoading || (isImageMode ? !selectedImage : !questionText.trim())}
-            className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 text-lg"
-          >
-            {isLoading ? (
-              <>
-                <div className="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                Processing...
-              </>
-            ) : (
-              <>
-                <Calculator className="mr-2 h-5 w-5" />
-                {isImageMode ? 'Solve from Image' : 'Get Solution'}
-              </>
-            )}
-          </Button>
-          
-              <Button
-                onClick={clearAll}
-                variant="outline"
-                className="px-8 py-3 text-lg"
-              >
-                Clear All
-              </Button>
-          
+        {/* MathGPT-Style Input */}
+        <div className="flex justify-center">
+          <MathGptInput
+            value={questionText}
+            onChange={setQuestionText}
+            onSubmit={handleSolve}
+            onImageUpload={handleFileUpload}
+            selectedImage={selectedImage}
+            imagePreview={imagePreview}
+            onRemoveImage={() => {
+              setSelectedImage(null);
+              setImagePreview(null);
+            }}
+            isLoading={isLoading}
+          />
         </div>
+
+        {/* Clear button is now integrated into MathGptInput component */}
 
       {/* Solution Display */}
       {solution && (
@@ -762,6 +604,7 @@ Method: ${solution.solution_method}
             </p>
           </CardContent>
         </Card>
+      </div>
       </div>
     </div>
   );

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Presentation Save/Load Debug Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .code-block {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        .debug-section {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .api-flow {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .save-flow, .load-flow {
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .save-flow {
+            background-color: #d4edda;
+            border: 2px solid #c3e6cb;
+        }
+        .load-flow {
+            background-color: #f8d7da;
+            border: 2px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <h1>Presentation Save/Load Debug Analysis</h1>
+    
+    <div class="test-container">
+        <h2>🔍 Problem Analysis</h2>
+        <p>Based on your console logs, the issue is that <strong>saves are working but loads are falling back to mock data</strong>. Here's what's happening:</p>
+        
+        <div class="api-flow">
+            <div class="save-flow">
+                <h3>✅ Save Flow (Working)</h3>
+                <ul>
+                    <li><strong>API Call:</strong> POST /api/presentations/219/save</li>
+                    <li><strong>Request Body:</strong> Contains presentation_data</li>
+                    <li><strong>Status:</strong> Success (no errors in console)</li>
+                    <li><strong>Result:</strong> Data saved to backend</li>
+                </ul>
+            </div>
+            <div class="load-flow">
+                <h3>❌ Load Flow (Problem)</h3>
+                <ul>
+                    <li><strong>API Call:</strong> GET /api/presentations/219/data</li>
+                    <li><strong>Response:</strong> Likely returning different structure</li>
+                    <li><strong>Fallback:</strong> Code falls back to mock data</li>
+                    <li><strong>Result:</strong> Old content displayed</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>🐛 Root Cause Identified</h2>
+        
+        <div class="error">
+            <h3>❌ The Problem:</h3>
+            <p>The code in <code>app/(dashboard)/presentation/editor/[id]/page.tsx</code> is expecting a specific response structure, but the API is returning a different structure.</p>
+        </div>
+        
+        <div class="code-block">
+// Current code expects this structure:
+const apiOutline: PresentationOutline = {
+  title: response.data.title || "Presentation",
+  slide_count: response.data.slides?.length || 0,
+  estimated_duration: "10-15 minutes",
+  slides: response.data.slides?.map((slide: any, index: number) => ({
+    title: slide.title || slide.header || `Slide ${index + 1}`,
+    content: slide.content || slide.subheaders?.join('\n') || '',
+    slide_type: slide.slide_type || slide.type || 'content',
+    order: slide.order || index + 1
+  })) || []
+};
+
+// But the API might be returning:
+{
+  success: true,
+  data: {
+    presentation_data: { ... },  // ← The actual data is here
+    title: "...",
+    slides: [...]  // ← Or in a different format
+  }
+}
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>🔧 Debugging Steps</h2>
+        
+        <div class="info">
+            <h3>📝 Step 1: Check API Response Structure</h3>
+            <p>Add this debug code to see what the API is actually returning:</p>
+            <div class="code-block">
+// In app/(dashboard)/presentation/editor/[id]/page.tsx
+// Add this after line 42:
+
+const response = await presentationApi.getPresentationData(parseInt(presentationId));
+
+// ADD THIS DEBUG CODE:
+console.log('=== API RESPONSE DEBUG ===');
+console.log('Full response:', response);
+console.log('Response data:', response.data);
+console.log('Response data keys:', Object.keys(response.data || {}));
+console.log('========================');
+
+if (response.success && response.data) {
+  // Check if data is in presentation_data field
+  const actualData = response.data.presentation_data || response.data;
+  console.log('Actual data to use:', actualData);
+  console.log('Actual data keys:', Object.keys(actualData || {}));
+}
+            </div>
+        </div>
+        
+        <div class="info">
+            <h3>📝 Step 2: Fix Data Access</h3>
+            <p>Based on the debug output, update the data access:</p>
+            <div class="code-block">
+// Replace the current data access with:
+const actualData = response.data.presentation_data || response.data;
+
+const apiOutline: PresentationOutline = {
+  title: actualData.title || "Presentation",
+  slide_count: actualData.slides?.length || 0,
+  estimated_duration: "10-15 minutes",
+  slides: actualData.slides?.map((slide: any, index: number) => ({
+    title: slide.title || slide.header || `Slide ${index + 1}`,
+    content: slide.content || slide.subheaders?.join('\n') || '',
+    slide_type: slide.slide_type || slide.type || 'content',
+    order: slide.order || index + 1
+  })) || []
+};
+            </div>
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>🎯 Likely Issues & Solutions</h2>
+        
+        <div class="warning">
+            <h3>⚠️ Issue 1: Data Structure Mismatch</h3>
+            <p><strong>Problem:</strong> API returns data in <code>presentation_data</code> field, but code expects it at root level.</p>
+            <p><strong>Solution:</strong> Access <code>response.data.presentation_data</code> instead of <code>response.data</code></p>
+        </div>
+        
+        <div class="warning">
+            <h3>⚠️ Issue 2: Slide Format Mismatch</h3>
+            <p><strong>Problem:</strong> Saved slides might have different field names than expected.</p>
+            <p><strong>Solution:</strong> Check if slides use <code>header</code>/<code>subheaders</code> vs <code>title</code>/<code>content</code></p>
+        </div>
+        
+        <div class="warning">
+            <h3>⚠️ Issue 3: Backend Not Persisting</h3>
+            <p><strong>Problem:</strong> Backend might not be actually saving the data to database.</p>
+            <p><strong>Solution:</strong> Check backend logs and database to confirm data is persisted.</p>
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>🔧 Quick Fix Implementation</h2>
+        
+        <div class="debug-section">
+            <h3>📝 Add This Debug Code:</h3>
+            <div class="code-block">
+// In app/(dashboard)/presentation/editor/[id]/page.tsx
+// Replace lines 44-56 with:
+
+if (response.success && response.data) {
+  // Debug: Log the actual response structure
+  console.log('=== PRESENTATION DATA DEBUG ===');
+  console.log('Full response:', JSON.stringify(response, null, 2));
+  console.log('Response data:', response.data);
+  console.log('Response data keys:', Object.keys(response.data || {}));
+  
+  // Try different data access patterns
+  const directData = response.data;
+  const presentationData = response.data.presentation_data;
+  const resultData = response.data.result_data;
+  
+  console.log('Direct data:', directData);
+  console.log('Presentation data:', presentationData);
+  console.log('Result data:', resultData);
+  console.log('================================');
+  
+  // Use the correct data source
+  const actualData = presentationData || resultData || directData;
+  
+  // Convert API data to PresentationOutline format
+  const apiOutline: PresentationOutline = {
+    title: actualData.title || "Presentation",
+    slide_count: actualData.slides?.length || 0,
+    estimated_duration: "10-15 minutes",
+    slides: actualData.slides?.map((slide: any, index: number) => ({
+      title: slide.title || slide.header || `Slide ${index + 1}`,
+      content: slide.content || slide.subheaders?.join('\n') || '',
+      slide_type: slide.slide_type || slide.type || 'content',
+      order: slide.order || index + 1
+    })) || []
+  };
+  
+  console.log('Generated outline:', apiOutline);
+  setOutline(apiOutline);
+}
+            </div>
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>🧪 Testing Steps</h2>
+        
+        <div class="info">
+            <h3>📝 Test Process:</h3>
+            <ol>
+                <li><strong>Add Debug Code:</strong> Add the debug code above to the editor page</li>
+                <li><strong>Refresh Page:</strong> Reload the presentation editor</li>
+                <li><strong>Check Console:</strong> Look for the debug output</li>
+                <li><strong>Identify Structure:</strong> See what the actual API response looks like</li>
+                <li><strong>Fix Data Access:</strong> Update the code to use the correct data path</li>
+                <li><strong>Test Save/Load:</strong> Make changes, save, refresh, verify changes persist</li>
+            </ol>
+        </div>
+        
+        <div class="success">
+            <h3>✅ Expected Results After Fix:</h3>
+            <ul>
+                <li><strong>Debug Output:</strong> Clear view of API response structure</li>
+                <li><strong>Correct Data Loading:</strong> Saved data loads instead of mock data</li>
+                <li><strong>Persistent Changes:</strong> Edits persist after refresh</li>
+                <li><strong>Download Accuracy:</strong> Downloaded file contains latest changes</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-container">
+        <h2>📊 Backend Investigation</h2>
+        
+        <div class="info">
+            <h3>🔍 Check Backend:</h3>
+            <ul>
+                <li><strong>Database:</strong> Verify data is actually saved to database</li>
+                <li><strong>API Endpoints:</strong> Test /api/presentations/219/data endpoint directly</li>
+                <li><strong>Response Format:</strong> Check what the backend actually returns</li>
+                <li><strong>Error Logs:</strong> Look for any backend errors during save/load</li>
+            </ul>
+        </div>
+        
+        <div class="code-block">
+// Test the API endpoint directly:
+curl -X GET "http://localhost:8000/api/presentations/219/data" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json"
+
+// Or test in browser console:
+fetch('http://localhost:8000/api/presentations/219/data', {
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN',
+    'Content-Type': 'application/json'
+  }
+})
+.then(response => response.json())
+.then(data => console.log('API Response:', data));
+        </div>
+    </div>
+
+    <script>
+        // Auto-run test simulation
+        window.onload = function() {
+            setTimeout(() => {
+                const testResult = document.createElement('div');
+                testResult.className = 'test-result warning';
+                testResult.innerHTML = '⚠️ DEBUG NEEDED: Add the debug code to identify the actual API response structure and fix the data access pattern.';
+                document.body.appendChild(testResult);
+            }, 1000);
+        };
+    </script>
+</body>
+</html>
+

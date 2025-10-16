@@ -84,6 +84,7 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [presentationTitle, setPresentationTitle] = useState(initialOutline.title);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize slides from outline
@@ -382,7 +383,19 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
         font_style: 'modern'
       };
       
+      // Debug: Log what we're saving
+      console.log('=== SAVING PRESENTATION DEBUG ===');
+      console.log('Presentation ID:', presentationId);
+      console.log('Presentation Data:', JSON.stringify(presentationData, null, 2));
+      console.log('Slides being saved:', slides);
+      console.log('================================');
+      
       const response = await presentationApi.savePresentation(presentationId, presentationData);
+      
+      // Debug: Log the save response
+      console.log('=== SAVE RESPONSE DEBUG ===');
+      console.log('Save response:', response);
+      console.log('===========================');
       
       if (response.success) {
         setLastSaved(new Date());

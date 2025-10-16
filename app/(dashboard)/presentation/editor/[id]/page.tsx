@@ -42,12 +42,31 @@ export default function PresentationEditorPage() {
           const response = await presentationApi.getPresentationData(parseInt(presentationId));
           
           if (response.success && response.data) {
+            // Debug: Log the actual response structure
+            console.log('=== PRESENTATION DATA DEBUG ===');
+            console.log('Full response:', JSON.stringify(response, null, 2));
+            console.log('Response data:', response.data);
+            console.log('Response data keys:', Object.keys(response.data || {}));
+            
+            // Try different data access patterns
+            const directData = response.data;
+            const presentationData = response.data.presentation_data;
+            const resultData = response.data.result_data;
+            
+            console.log('Direct data:', directData);
+            console.log('Presentation data:', presentationData);
+            console.log('Result data:', resultData);
+            console.log('================================');
+            
+            // Use the correct data source
+            const actualData = presentationData || resultData || directData;
+            
             // Convert API data to PresentationOutline format
             const apiOutline: PresentationOutline = {
-              title: response.data.title || "Presentation",
-              slide_count: response.data.slides?.length || 0,
+              title: actualData.title || "Presentation",
+              slide_count: actualData.slides?.length || 0,
               estimated_duration: "10-15 minutes",
-              slides: response.data.slides?.map((slide: any, index: number) => ({
+              slides: actualData.slides?.map((slide: any, index: number) => ({
                 title: slide.title || slide.header || `Slide ${index + 1}`,
                 content: slide.content || slide.subheaders?.join('\n') || '',
                 slide_type: slide.slide_type || slide.type || 'content',
@@ -55,6 +74,7 @@ export default function PresentationEditorPage() {
               })) || []
             };
             
+            console.log('Generated outline:', apiOutline);
             setOutline(apiOutline);
           } else {
             // Fallback to mock data if API fails
