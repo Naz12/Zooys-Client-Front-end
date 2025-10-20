@@ -104,9 +104,17 @@ export class ApiClient {
       console.log(`Making request to: ${url}`);
       console.log(`Request config:`, config);
       
-      // Add timeout for PowerPoint generation (30 seconds)
+      // Add timeout for API requests (60 seconds for flashcard generation, 45 seconds for async operations, 30 seconds for others)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      let timeoutDuration = 30000; // Default 30 seconds
+      
+      if (endpoint.includes('/flashcards/generate')) {
+        timeoutDuration = 60000; // 60 seconds for flashcard generation
+      } else if (endpoint.includes('/summarize/async') || endpoint.includes('/async')) {
+        timeoutDuration = 45000; // 45 seconds for async operations
+      }
+      
+      const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
       
       const response = await fetch(url, {
         ...config,
@@ -235,7 +243,15 @@ export class ApiClient {
       if (error instanceof Error) {
         // Handle timeout errors specifically
         if (error.name === 'AbortError') {
-          throw new Error('Request timeout - PowerPoint generation is taking longer than expected. Please try again.');
+          let timeoutMessage = 'Request timeout - The request is taking longer than expected. Please try again.';
+          
+          if (endpoint.includes('/flashcards/generate')) {
+            timeoutMessage = 'Request timeout - Flashcard generation is taking longer than expected. Please try again.';
+          } else if (endpoint.includes('/summarize/async') || endpoint.includes('/async')) {
+            timeoutMessage = 'Request timeout - Async job initialization is taking longer than expected. The backend might be processing a heavy workload. Please try again in a few moments.';
+          }
+          
+          throw new Error(timeoutMessage);
         }
         throw error;
       }
@@ -418,7 +434,15 @@ export class ApiClient {
       if (error instanceof Error) {
         // Handle timeout errors specifically
         if (error.name === 'AbortError') {
-          throw new Error('Request timeout - PowerPoint generation is taking longer than expected. Please try again.');
+          let timeoutMessage = 'Request timeout - The request is taking longer than expected. Please try again.';
+          
+          if (endpoint.includes('/flashcards/generate')) {
+            timeoutMessage = 'Request timeout - Flashcard generation is taking longer than expected. Please try again.';
+          } else if (endpoint.includes('/summarize/async') || endpoint.includes('/async')) {
+            timeoutMessage = 'Request timeout - Async job initialization is taking longer than expected. The backend might be processing a heavy workload. Please try again in a few moments.';
+          }
+          
+          throw new Error(timeoutMessage);
         }
         throw error;
       }
@@ -472,6 +496,9 @@ export const API_ENDPOINTS = {
   
   // Unified Summarization
   SUMMARIZE: '/summarize',
+  SUMMARIZE_ASYNC: '/summarize/async',
+  SUMMARIZE_STATUS: '/summarize/status',
+  SUMMARIZE_RESULT: '/summarize/result',
   UPLOAD_FILE: '/summarize/upload',
   UPLOAD_STATUS: '/summarize/upload',
   
@@ -589,15 +616,65 @@ export interface SummarizeRequest {
 }
 
 export interface SummarizeResponse {
-  summary?: string;
+  success?: boolean;
+  message?: string;
+  summary?: string; // For backward compatibility
   error?: string;
-  metadata: {
+  data?: {
+    summary?: string;
+    metadata?: {
+      content_type: string;
+      processing_time: string;
+      tokens_used: number;
+      confidence: number;
+    };
+    source_info?: {
+      word_count?: number;
+      character_count?: number;
+      duration?: string;
+      file_size?: string;
+      audio_quality?: string;
+      video_quality?: string;
+      transcription?: string;
+      // PDF specific
+      pages?: number;
+      title?: string;
+      author?: string;
+      created_date?: string;
+      subject?: string;
+      password_protected?: boolean;
+      // Link specific
+      url?: string;
+      title?: string;
+      description?: string;
+      author?: string;
+      published_date?: string;
+      // Image specific
+      image_resolution?: string;
+      file_format?: string;
+    };
+    ai_result?: {
+      id: number;
+      title: string;
+      file_url?: string;
+      created_at: string;
+    };
+  };
+  ui_helpers?: {
+    summary_length: number;
+    word_count: number;
+    estimated_read_time: string;
+    can_download: boolean;
+    can_share: boolean;
+  };
+  // Legacy fields for backward compatibility
+  metadata?: {
     content_type: string;
     processing_time: string;
     tokens_used: number;
     confidence: number;
   };
-  source_info: {
+  source_info?: {
     word_count?: number;
     character_count?: number;
     duration?: string;
@@ -622,6 +699,34 @@ export interface SummarizeResponse {
     image_resolution?: string;
     file_format?: string;
   };
+}
+
+// Async summarization types
+export interface AsyncSummarizeResponse {
+  job_id: string;
+  poll_url: string;
+  result_url: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  message: string;
+}
+
+export interface JobStatusResponse {
+  job_id: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  progress: number; // 0-100
+  message: string;
+  logs?: string[];
+  error?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface JobResultResponse {
+  job_id: string;
+  status: 'completed' | 'failed';
+  result?: SummarizeResponse;
+  error?: string;
+  completed_at: string;
 }
 
 export interface UploadResponse {
@@ -719,6 +824,16 @@ export const summarizeApi = {
   // Unified summarization endpoint
   summarize: (request: SummarizeRequest) =>
     apiClient.post<SummarizeResponse>(API_ENDPOINTS.SUMMARIZE, request),
+  
+  // Async summarization endpoints
+  summarizeAsync: (request: SummarizeRequest) =>
+    apiClient.post<AsyncSummarizeResponse>(API_ENDPOINTS.SUMMARIZE_ASYNC, request),
+  
+  getJobStatus: (jobId: string) =>
+    apiClient.get<JobStatusResponse>(`${API_ENDPOINTS.SUMMARIZE_STATUS}/${jobId}`),
+  
+  getJobResult: (jobId: string) =>
+    apiClient.get<JobResultResponse>(`${API_ENDPOINTS.SUMMARIZE_RESULT}/${jobId}`),
   
   // File upload
   uploadFile: (file: File, contentType: string) =>

@@ -239,29 +239,106 @@ Creates a Stripe checkout session for subscription purchase.
 
 ## AI Tools
 
-### YouTube Video Summarizer
-**POST** `/api/youtube/summarize`
+### YouTube Video Summarizer (Async)
+**POST** `/api/summarize/async`
 **Headers:** `Authorization: Bearer {token}`
 
-Summarizes YouTube video content using AI.
+Starts an asynchronous job to summarize YouTube video content using AI. Returns immediately with job ID for polling.
 
 **Payload:**
 ```json
 {
-    "video_url": "https://youtube.com/watch?v=abc123",
-    "language": "en",
-    "mode": "detailed"
+    "content_type": "link",
+    "source": {
+        "type": "url",
+        "data": "https://youtube.com/watch?v=abc123"
+    },
+    "options": {
+        "mode": "detailed",
+        "language": "en",
+        "focus": "summary"
+    }
 }
 ```
 
 **Response:**
 ```json
 {
-    "summary": "This is a test summary for video: https://youtube.com/watch?v=abc123"
+    "job_id": "job_123456789",
+    "poll_url": "/api/summarize/status/job_123456789",
+    "result_url": "/api/summarize/result/job_123456789",
+    "status": "pending",
+    "message": "Job queued successfully"
 }
 ```
 
-**Status:** ⚠️ Returns mock data
+**Status:** ✅ Fully Functional (Async Processing)
+
+---
+
+### Get Job Status
+**GET** `/api/summarize/status/{jobId}`
+**Headers:** `Authorization: Bearer {token}`
+
+Polls the status of an async summarization job.
+
+**Response:**
+```json
+{
+    "job_id": "job_123456789",
+    "status": "processing",
+    "progress": 65,
+    "message": "Processing video content...",
+    "logs": [
+        "Downloading video...",
+        "Extracting audio...",
+        "Transcribing content...",
+        "Generating summary..."
+    ],
+    "created_at": "2025-01-30T10:00:00.000000Z",
+    "updated_at": "2025-01-30T10:02:30.000000Z"
+}
+```
+
+**Status:** ✅ Fully Functional
+
+---
+
+### Get Job Result
+**GET** `/api/summarize/result/{jobId}`
+**Headers:** `Authorization: Bearer {token}`
+
+Retrieves the final result of a completed summarization job.
+
+**Response:**
+```json
+{
+    "job_id": "job_123456789",
+    "status": "completed",
+    "result": {
+        "summary": "This video discusses the fundamentals of machine learning...",
+        "data": {
+            "summary": "This video discusses the fundamentals of machine learning...",
+            "metadata": {
+                "content_type": "video",
+                "processing_time": "2.5s",
+                "tokens_used": 1500,
+                "confidence": 0.95
+            },
+            "source_info": {
+                "url": "https://youtube.com/watch?v=abc123",
+                "title": "Introduction to Machine Learning",
+                "author": "Tech Channel",
+                "duration": "15:30",
+                "word_count": 2500
+            }
+        }
+    },
+    "completed_at": "2025-01-30T10:03:00.000000Z"
+}
+```
+
+**Status:** ✅ Fully Functional
 
 ---
 
