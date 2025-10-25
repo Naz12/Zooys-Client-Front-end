@@ -8,7 +8,8 @@ import LinkInput from "@/components/ui/link-input";
 import TextInput from "@/components/ui/text-input";
 import PasswordInput from "@/components/ui/password-input";
 import ResultDisplay, { SummaryResult } from "@/components/ui/result-display";
-import { summarizeApi, type SummarizeRequest, type SummarizeResponse } from "@/lib/api-client";
+import UniversalResultDisplay from "@/components/universal-result-display";
+import { summarizeApi, specializedSummarizeApi, type SummarizeRequest, type SummarizeResponse, type AsyncSummarizeResponse, type JobStatusResponse, type JobResultResponse } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications";
 import {
@@ -33,6 +34,8 @@ export default function SummarizerPage() {
   const [activeContentType, setActiveContentType] = useState<ContentType>("youtube");
   const [language, setLanguage] = useState("en");
   const [isLoading, setIsLoading] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
+  const [pollingStatus, setPollingStatus] = useState("");
   const [inputValue, setInputValue] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<FileUploadItem[]>([]);
   const [uploadedMedia, setUploadedMedia] = useState<MediaUploadItem[]>([]);
@@ -43,8 +46,8 @@ export default function SummarizerPage() {
 
   const contentTypes = [
     { id: "youtube" as ContentType, label: "YouTube", icon: Youtube },
-    { id: "pdf" as ContentType, label: "PDF, Image & Files", icon: FileText },
-    { id: "audio" as ContentType, label: "Audio, Video", icon: Music2 },
+    { id: "pdf" as ContentType, label: "PDF & Documents", icon: FileText },
+    { id: "audio" as ContentType, label: "Audio & Video", icon: Music2 },
     { id: "link" as ContentType, label: "Link", icon: LinkIcon },
     { id: "text" as ContentType, label: "Long Text", icon: Type },
   ];
@@ -77,7 +80,7 @@ export default function SummarizerPage() {
               data: inputValue.trim()
             },
             options: {
-              mode: "detailed",
+              mode: "bundle",
               language: language,
               focus: "summary"
             }
@@ -126,7 +129,161 @@ export default function SummarizerPage() {
           return;
       }
 
-      const response: SummarizeResponse = await summarizeApi.summarize(request);
+      // Start async job using specialized endpoints
+      let asyncResp: AsyncSummarizeResponse;
+      
+      switch (activeContentType) {
+        case "text":
+          asyncResp = await specializedSummarizeApi.startTextJob(
+            request.source.data,
+            request.options
+          );
+          break;
+          
+        case "link":
+          asyncResp = await specializedSummarizeApi.startLinkJob(
+            request.source.data,
+            request.options
+          );
+          break;
+          
+        case "pdf":
+        case "audio":
+          // For file uploads, we need to get the actual file
+          if (uploadedFiles.length === 0) {
+            showError("Error", "Please upload a file first");
+            setIsLoading(false);
+            return;
+          }
+          
+          // Get the first uploaded file
+          const firstFile = uploadedFiles[0];
+          if (!firstFile.file) {
+            showError("Error", "File object not available");
+            setIsLoading(false);
+            return;
+          }
+          
+          // Use specialized file endpoint with the actual File object
+          if (activeContentType === "pdf") {
+            asyncResp = await specializedSummarizeApi.startFileJob(
+              firstFile.file,
+              request.options
+            );
+          } else if (activeContentType === "audio") {
+            asyncResp = await specializedSummarizeApi.startAudioVideoJob(
+              firstFile.file,
+              request.options
+            );
+          } else {
+            // Fallback to generic file endpoint
+            asyncResp = await specializedSummarizeApi.startFileJob(
+              firstFile.file,
+              request.options
+            );
+          }
+          break;
+          
+        default:
+          // Fall back to generic endpoint for unsupported types
+          asyncResp = await summarizeApi.summarizeAsync(request);
+          break;
+      }
+
+      // Start polling with status updates
+      setIsPolling(true);
+      setPollingStatus("Job started, waiting for processing...");
+
+      // Poll status until completed/failed (with exponential backoff for network errors)
+      let finalSummary: SummarizeResponse | null = null;
+      let attempts = 0;
+      let delayMs = 2500; // Start with 2.5 seconds
+      while (attempts < 60) { // ~3 minutes max (60 * 3s) - backend completes in ~33 seconds
+        try {
+          const status: JobStatusResponse = asyncResp.poll_url
+            ? await specializedSummarizeApi.getJobStatusByUrl(asyncResp.poll_url)
+            : await specializedSummarizeApi.getJobStatus(asyncResp.job_id);
+          
+          // Debug logging to see what status we're getting
+          console.log(`Status check ${attempts + 1}:`, status);
+          
+          if (status.status === 'completed') {
+            setPollingStatus("Processing completed, retrieving results...");
+            const result: JobResultResponse = asyncResp.result_url
+              ? await specializedSummarizeApi.getJobResultByUrl(asyncResp.result_url)
+              : await specializedSummarizeApi.getJobResult(asyncResp.job_id);
+            
+            // Debug logging to see what result we're getting
+            console.log('Result response:', result);
+            console.log('Result.result:', result.result);
+            console.log('Result.data:', result.data);
+            
+            // Fix: Handle different response structures for different input types
+            if (result.data) {
+              // Check if it's a text summary response
+              if ('key_points' in result.data && 'confidence_score' in result.data) {
+                // Text summary response
+                finalSummary = {
+                  summary: result.data.summary,
+                  key_points: result.data.key_points,
+                  confidence_score: result.data.confidence_score,
+                  model_used: result.data.model_used
+                };
+              }
+              // Check if it's a YouTube summary response
+              else if ('bundle' in result.data || 'ai_result' in result.data) {
+                // YouTube summary response - use the existing YouTube result display
+                finalSummary = result.data;
+              }
+              // Check if it's a simple summary response
+              else if ('summary' in result.data) {
+                // Simple summary response
+                finalSummary = {
+                  summary: result.data.summary,
+                  key_points: [],
+                  confidence_score: 0,
+                  model_used: 'unknown'
+                };
+              }
+              // Fallback for other response types
+              else {
+                finalSummary = result.data;
+              }
+            } else {
+              finalSummary = null;
+            }
+            
+            console.log('Final summary set:', finalSummary);
+            break;
+          }
+          if (status.status === 'failed') {
+            throw new Error(status.error || 'Summarization failed');
+          }
+          
+          // Update polling status with progress info
+          const progressPercent = Math.round((attempts / 60) * 100);
+          setPollingStatus(`Processing... Status: ${status.status}, Progress: ${status.progress || 0}%, Stage: ${status.stage || 'unknown'} (${progressPercent}% of max time elapsed, attempt ${attempts + 1}/60)`);
+          
+          // Use variable delay: 2-3 seconds for normal polling
+          const pollDelay = Math.random() * 500 + 1500; // 1500-2000ms - faster polling
+          await new Promise(r => setTimeout(r, pollDelay));
+          attempts++;
+          continue;
+        } catch (err) {
+          // Connection refused or other fetch/network error: backoff
+          setPollingStatus(`Connection issue, retrying in ${Math.round(delayMs/1000)}s... (attempt ${attempts + 1}/300)`);
+          await new Promise(r => setTimeout(r, delayMs));
+          delayMs = Math.min(10000, Math.floor(delayMs * 1.5));
+          attempts++;
+          continue;
+        }
+      }
+
+      if (!finalSummary) {
+        throw new Error('Timed out waiting for summarization result after 3 minutes. The content might be very large or complex. Please try with smaller content or contact support if the issue persists.');
+      }
+
+      const response: SummarizeResponse = finalSummary;
       
       // Handle API errors
       if (response.error) {
@@ -151,18 +308,18 @@ export default function SummarizerPage() {
         content: response.summary,
         contentType: activeContentType,
         source: activeContentType === "youtube" || activeContentType === "link" ? {
-          title: response.source_info.title || "Content Title",
-          url: response.source_info.url || inputValue,
-          author: response.source_info.author,
-          views: response.source_info.published_date, // Using published_date for views as a mock
+          title: response.source_info?.title || "Content Title",
+          url: response.source_info?.url || inputValue,
+          author: response.source_info?.author,
+          views: response.source_info?.published_date, // Using published_date for views as a mock
         } : activeContentType === "pdf" ? {
-          title: response.source_info.title,
-          author: response.source_info.author,
+          title: response.source_info?.title,
+          author: response.source_info?.author,
         } : undefined,
         metadata: {
-          processingTime: parseFloat(response.metadata.processing_time.replace('s', '')),
-          wordCount: response.source_info.word_count || 0,
-          confidence: response.metadata.confidence,
+          processingTime: response.metadata?.processing_time ? parseFloat(response.metadata.processing_time.replace('s', '')) : 0,
+          wordCount: response.source_info?.word_count || 0,
+          confidence: response.metadata?.confidence || 0,
           language: language
         },
         timestamp: new Date()
@@ -175,6 +332,8 @@ export default function SummarizerPage() {
       showError("Error", error instanceof Error ? error.message : "Failed to summarize content");
     } finally {
       setIsLoading(false);
+      setIsPolling(false);
+      setPollingStatus("");
     }
   };
 
@@ -194,7 +353,41 @@ export default function SummarizerPage() {
         }
       };
 
-      const response: SummarizeResponse = await summarizeApi.summarize(requestWithPassword);
+      const asyncResp: AsyncSummarizeResponse = await summarizeApi.summarizeAsync(requestWithPassword);
+      let finalSummary: SummarizeResponse | null = null;
+      let attempts = 0;
+      let delayMs = 2000;
+      while (attempts < 180) {
+        try {
+          const status: JobStatusResponse = asyncResp.poll_url
+            ? await specializedSummarizeApi.getJobStatusByUrl(asyncResp.poll_url)
+            : await specializedSummarizeApi.getJobStatus(asyncResp.job_id);
+          if (status.status === 'completed') {
+            const result: JobResultResponse = asyncResp.result_url
+              ? await specializedSummarizeApi.getJobResultByUrl(asyncResp.result_url)
+              : await specializedSummarizeApi.getJobResult(asyncResp.job_id);
+            finalSummary = result.result || null;
+            break;
+          }
+          if (status.status === 'failed') {
+            throw new Error(status.error || 'Summarization failed');
+          }
+          await new Promise(r => setTimeout(r, 2000));
+          attempts++;
+          continue;
+        } catch (err) {
+          await new Promise(r => setTimeout(r, delayMs));
+          delayMs = Math.min(10000, Math.floor(delayMs * 1.5));
+          attempts++;
+          continue;
+        }
+      }
+
+      if (!finalSummary) {
+        throw new Error('Timed out waiting for summarization result after 3 minutes. The content might be very large or complex. Please try with smaller content or contact support if the issue persists.');
+      }
+
+      const response: SummarizeResponse = finalSummary;
       
       // Handle API errors
       if (response.error) {
@@ -212,13 +405,13 @@ export default function SummarizerPage() {
         content: response.summary,
         contentType: activeContentType,
         source: {
-          title: response.source_info.title,
-          author: response.source_info.author,
+          title: response.source_info?.title,
+          author: response.source_info?.author,
         },
         metadata: {
-          processingTime: parseFloat(response.metadata.processing_time.replace('s', '')),
-          wordCount: response.source_info.word_count || 0,
-          confidence: response.metadata.confidence,
+          processingTime: response.metadata?.processing_time ? parseFloat(response.metadata.processing_time.replace('s', '')) : 0,
+          wordCount: response.source_info?.word_count || 0,
+          confidence: response.metadata?.confidence || 0,
           language: language
         },
         timestamp: new Date()
@@ -364,7 +557,7 @@ export default function SummarizerPage() {
                     {isLoading ? (
                       <>
                         <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                        Summarizing...
+                        {isPolling ? "Processing..." : "Summarizing..."}
                       </>
                     ) : (
                       <>
@@ -373,6 +566,19 @@ export default function SummarizerPage() {
                       </>
                     )}
                   </Button>
+                  
+                  {/* Polling Status Display */}
+                  {isPolling && pollingStatus && (
+                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-center">
+                        <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                        <span className="text-sm text-blue-800">{pollingStatus}</span>
+                      </div>
+                      <div className="mt-2 text-xs text-blue-600">
+                        This may take several minutes for large or complex content. Please keep this page open.
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -388,7 +594,7 @@ export default function SummarizerPage() {
 
           {/* Results Display */}
           {result && (
-            <ResultDisplay
+            <UniversalResultDisplay
               result={result}
               onRegenerate={handleRegenerate}
               onExport={handleExport}

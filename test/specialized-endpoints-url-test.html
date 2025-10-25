@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Specialized Endpoints URL Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        .info {
+            background-color: #d1ecf1;
+            border-color: #bee5eb;
+            color: #0c5460;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .url-display {
+            font-family: monospace;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            word-break: break-all;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Specialized Endpoints URL Test</h1>
+        <p>Testing the corrected API URLs for specialized endpoints.</p>
+
+        <div class="test-section info">
+            <h3>📋 Expected URLs</h3>
+            <p>With API_BASE_URL = 'http://localhost:8000/api', the endpoints should be:</p>
+            <div class="url-display">
+                <strong>YouTube:</strong> http://localhost:8000/api/summarize/async/youtube<br>
+                <strong>Text:</strong> http://localhost:8000/api/summarize/async/text<br>
+                <strong>Link:</strong> http://localhost:8000/api/summarize/link<br>
+                <strong>File:</strong> http://localhost:8000/api/summarize/async/file<br>
+                <strong>Audio/Video:</strong> http://localhost:8000/api/summarize/async/audiovideo<br>
+                <strong>Image:</strong> http://localhost:8000/api/summarize/async/image
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🧪 URL Construction Test</h3>
+            <button onclick="testUrlConstruction()">Test URL Construction</button>
+            <div id="urlResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔗 Endpoint Connectivity Test</h3>
+            <button onclick="testEndpointConnectivity()">Test Endpoint Connectivity</button>
+            <div id="connectivityResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Full Integration Test</h3>
+            <button onclick="testFullIntegration()">Test Full Integration</button>
+            <div id="integrationResults"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000/api';
+        
+        // Mock API client for testing
+        class MockApiClient {
+            constructor(baseURL) {
+                this.baseURL = baseURL;
+            }
+            
+            post(endpoint, data) {
+                const fullUrl = this.baseURL + endpoint;
+                return {
+                    url: fullUrl,
+                    method: 'POST',
+                    data: data
+                };
+            }
+        }
+        
+        const mockClient = new MockApiClient(API_BASE_URL);
+        
+        // Specialized endpoints with corrected paths
+        const specializedEndpoints = {
+            startYouTubeJob: (url, options) => 
+                mockClient.post('/summarize/async/youtube', { url, options }),
+            startTextJob: (text, options) => 
+                mockClient.post('/summarize/async/text', { text, options }),
+            startLinkJob: (url, options) => 
+                mockClient.post('/summarize/link', { url, options }),
+            startFileJob: (file, options) => 
+                mockClient.post('/summarize/async/file', { file, options }),
+            startAudioVideoJob: (file, options) => 
+                mockClient.post('/summarize/async/audiovideo', { file, options }),
+            startImageJob: (file, options) => 
+                mockClient.post('/summarize/async/image', { file, options })
+        };
+        
+        function testUrlConstruction() {
+            const results = document.getElementById('urlResults');
+            results.innerHTML = '<h4>URL Construction Results:</h4>';
+            
+            const expectedUrls = {
+                'YouTube': 'http://localhost:8000/api/summarize/async/youtube',
+                'Text': 'http://localhost:8000/api/summarize/async/text',
+                'Link': 'http://localhost:8000/api/summarize/link',
+                'File': 'http://localhost:8000/api/summarize/async/file',
+                'Audio/Video': 'http://localhost:8000/api/summarize/async/audiovideo',
+                'Image': 'http://localhost:8000/api/summarize/async/image'
+            };
+            
+            let allCorrect = true;
+            
+            Object.entries(specializedEndpoints).forEach(([methodName, method]) => {
+                const result = method('test-data', {});
+                const endpointName = methodName.replace('start', '').replace('Job', '');
+                const expectedUrl = expectedUrls[endpointName] || 'Unknown';
+                
+                const isCorrect = result.url === expectedUrl;
+                allCorrect = allCorrect && isCorrect;
+                
+                const statusClass = isCorrect ? 'success' : 'error';
+                const statusIcon = isCorrect ? '✅' : '❌';
+                
+                results.innerHTML += `
+                    <div class="result ${statusClass}">
+                        ${statusIcon} <strong>${endpointName}:</strong><br>
+                        <div class="url-display">${result.url}</div>
+                        <strong>Expected:</strong> ${expectedUrl}<br>
+                        <strong>Status:</strong> ${isCorrect ? 'CORRECT' : 'INCORRECT'}
+                    </div>
+                `;
+            });
+            
+            const overallStatus = allCorrect ? 'success' : 'error';
+            const overallIcon = allCorrect ? '✅' : '❌';
+            
+            results.innerHTML += `
+                <div class="result ${overallStatus}">
+                    <h4>${overallIcon} Overall Status: ${allCorrect ? 'ALL URLS CORRECT' : 'SOME URLS INCORRECT'}</h4>
+                </div>
+            `;
+        }
+        
+        async function testEndpointConnectivity() {
+            const results = document.getElementById('connectivityResults');
+            results.innerHTML = '<h4>Testing endpoint connectivity...</h4>';
+            
+            const endpoints = [
+                { name: 'YouTube', url: 'http://localhost:8000/api/summarize/async/youtube' },
+                { name: 'Text', url: 'http://localhost:8000/api/summarize/async/text' },
+                { name: 'Link', url: 'http://localhost:8000/api/summarize/link' },
+                { name: 'File', url: 'http://localhost:8000/api/summarize/async/file' },
+                { name: 'Audio/Video', url: 'http://localhost:8000/api/summarize/async/audiovideo' },
+                { name: 'Image', url: 'http://localhost:8000/api/summarize/async/image' }
+            ];
+            
+            for (const endpoint of endpoints) {
+                try {
+                    // Test with OPTIONS request to check if endpoint exists
+                    const response = await fetch(endpoint.url, {
+                        method: 'OPTIONS',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    const statusClass = response.ok ? 'success' : 'error';
+                    const statusIcon = response.ok ? '✅' : '❌';
+                    
+                    results.innerHTML += `
+                        <div class="result ${statusClass}">
+                            ${statusIcon} <strong>${endpoint.name}:</strong><br>
+                            <div class="url-display">${endpoint.url}</div>
+                            <strong>Status:</strong> ${response.status} ${response.statusText}<br>
+                            <strong>Response:</strong> ${response.ok ? 'ENDPOINT AVAILABLE' : 'ENDPOINT NOT AVAILABLE'}
+                        </div>
+                    `;
+                } catch (error) {
+                    results.innerHTML += `
+                        <div class="result error">
+                            ❌ <strong>${endpoint.name}:</strong><br>
+                            <div class="url-display">${endpoint.url}</div>
+                            <strong>Error:</strong> ${error.message}
+                        </div>
+                    `;
+                }
+            }
+        }
+        
+        async function testFullIntegration() {
+            const results = document.getElementById('integrationResults');
+            results.innerHTML = '<h4>Testing full integration...</h4>';
+            
+            // Test text summarization
+            try {
+                results.innerHTML += '<div class="result info">Testing text summarization...</div>';
+                
+                const response = await fetch('http://localhost:8000/api/summarize/async/text', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer test-token'
+                    },
+                    body: JSON.stringify({
+                        text: 'This is a test text for summarization.',
+                        options: {
+                            language: 'en',
+                            format: 'detailed',
+                            focus: 'summary'
+                        }
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    results.innerHTML += `
+                        <div class="result success">
+                            ✅ <strong>Text Summarization Test:</strong><br>
+                            <strong>Status:</strong> ${response.status} ${response.statusText}<br>
+                            <strong>Response:</strong> ${JSON.stringify(data, null, 2)}
+                        </div>
+                    `;
+                } else {
+                    results.innerHTML += `
+                        <div class="result error">
+                            ❌ <strong>Text Summarization Test:</strong><br>
+                            <strong>Status:</strong> ${response.status} ${response.statusText}<br>
+                            <strong>Error:</strong> ${await response.text()}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                results.innerHTML += `
+                    <div class="result error">
+                        ❌ <strong>Text Summarization Test:</strong><br>
+                        <strong>Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+            
+            // Test YouTube summarization
+            try {
+                results.innerHTML += '<div class="result info">Testing YouTube summarization...</div>';
+                
+                const response = await fetch('http://localhost:8000/api/summarize/async/youtube', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer test-token'
+                    },
+                    body: JSON.stringify({
+                        url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                        options: {
+                            language: 'en',
+                            format: 'bundle',
+                            focus: 'summary'
+                        }
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    results.innerHTML += `
+                        <div class="result success">
+                            ✅ <strong>YouTube Summarization Test:</strong><br>
+                            <strong>Status:</strong> ${response.status} ${response.statusText}<br>
+                            <strong>Response:</strong> ${JSON.stringify(data, null, 2)}
+                        </div>
+                    `;
+                } else {
+                    results.innerHTML += `
+                        <div class="result error">
+                            ❌ <strong>YouTube Summarization Test:</strong><br>
+                            <strong>Status:</strong> ${response.status} ${response.statusText}<br>
+                            <strong>Error:</strong> ${await response.text()}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                results.innerHTML += `
+                    <div class="result error">
+                        ❌ <strong>YouTube Summarization Test:</strong><br>
+                        <strong>Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
+
+

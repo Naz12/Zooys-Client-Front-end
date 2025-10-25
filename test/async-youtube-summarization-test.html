@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Async YouTube Summarization Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .btn {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .btn:hover {
+            background: #b91c1c;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            background: #6b7280;
+        }
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #dc2626;
+            transition: width 0.3s ease;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+        .status.processing {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+        .status.completed {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #86efac;
+        }
+        .status.failed {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fca5a5;
+        }
+        .logs {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .result-section {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .result-tabs {
+            display: flex;
+            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 20px;
+        }
+        .result-tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        .result-tab.active {
+            border-bottom-color: #dc2626;
+            color: #dc2626;
+            font-weight: 500;
+        }
+        .result-content {
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+        .metadata-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .metadata-item {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+        .metadata-item h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #374151;
+        }
+        .metadata-item p {
+            margin: 0;
+            font-size: 13px;
+            color: #6b7280;
+        }
+        .error {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #fca5a5;
+            margin: 10px 0;
+        }
+        .success {
+            background: #f0fdf4;
+            color: #166534;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #bbf7d0;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Async YouTube Summarization Test</h1>
+            <p>Test the complete async YouTube summarization workflow with bundle data support</p>
+        </div>
+
+        <div class="test-section">
+            <h3>📝 Test Configuration</h3>
+            <div class="form-group">
+                <label for="videoUrl">YouTube URL:</label>
+                <input type="text" id="videoUrl" placeholder="https://www.youtube.com/watch?v=VIDEO_ID" 
+                       value="https://www.youtube.com/watch?v=dQw4w9WgXcQ">
+            </div>
+            <div class="form-group">
+                <label for="language">Language:</label>
+                <select id="language">
+                    <option value="en">English</option>
+                    <option value="es">Spanish</option>
+                    <option value="fr">French</option>
+                    <option value="de">German</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="mode">Mode:</label>
+                <select id="mode">
+                    <option value="bundle">Bundle (Full Data)</option>
+                    <option value="detailed">Detailed</option>
+                    <option value="brief">Brief</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🎬 Start Summarization</h3>
+            <button id="startBtn" class="btn">Start Async Job</button>
+            <button id="cancelBtn" class="btn btn-secondary" disabled>Cancel Job</button>
+            <button id="resetBtn" class="btn btn-secondary">Reset</button>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Job Status</h3>
+            <div id="statusDisplay" class="status" style="display: none;">
+                <div id="statusText">Ready to start</div>
+                <div class="progress-bar">
+                    <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+                </div>
+                <div id="progressText">0%</div>
+            </div>
+            <div id="logsDisplay" class="logs" style="display: none;">
+                <div id="logsContent">No logs yet...</div>
+            </div>
+        </div>
+
+        <div id="resultSection" class="result-section" style="display: none;">
+            <h3>📋 Results</h3>
+            <div class="result-tabs">
+                <div class="result-tab active" data-tab="summary">Summary</div>
+                <div class="result-tab" data-tab="details">Details</div>
+                <div class="result-tab" data-tab="bundle">Bundle Data</div>
+            </div>
+            <div class="result-content">
+                <div id="summaryContent"></div>
+                <div id="detailsContent" style="display: none;"></div>
+                <div id="bundleContent" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class AsyncYouTubeSummarizer {
+            constructor() {
+                this.apiBaseUrl = 'http://localhost:8000/api';
+                this.authToken = localStorage.getItem('auth_token');
+                this.currentJobId = null;
+                this.pollInterval = null;
+                this.maxRetries = 5;
+                this.retryCount = 0;
+                this.maxPollAttempts = 100;
+                this.pollAttempts = 0;
+                
+                this.initializeElements();
+                this.bindEvents();
+            }
+
+            initializeElements() {
+                this.elements = {
+                    videoUrl: document.getElementById('videoUrl'),
+                    language: document.getElementById('language'),
+                    mode: document.getElementById('mode'),
+                    startBtn: document.getElementById('startBtn'),
+                    cancelBtn: document.getElementById('cancelBtn'),
+                    resetBtn: document.getElementById('resetBtn'),
+                    statusDisplay: document.getElementById('statusDisplay'),
+                    statusText: document.getElementById('statusText'),
+                    progressFill: document.getElementById('progressFill'),
+                    progressText: document.getElementById('progressText'),
+                    logsDisplay: document.getElementById('logsDisplay'),
+                    logsContent: document.getElementById('logsContent'),
+                    resultSection: document.getElementById('resultSection'),
+                    summaryContent: document.getElementById('summaryContent'),
+                    detailsContent: document.getElementById('detailsContent'),
+                    bundleContent: document.getElementById('bundleContent')
+                };
+            }
+
+            bindEvents() {
+                this.elements.startBtn.addEventListener('click', () => this.startJob());
+                this.elements.cancelBtn.addEventListener('click', () => this.cancelJob());
+                this.elements.resetBtn.addEventListener('click', () => this.reset());
+                
+                // Tab switching
+                document.querySelectorAll('.result-tab').forEach(tab => {
+                    tab.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
+                });
+            }
+
+            async startJob() {
+                const videoUrl = this.elements.videoUrl.value.trim();
+                const language = this.elements.language.value;
+                const mode = this.elements.mode.value;
+
+                if (!videoUrl) {
+                    this.showError('Please enter a YouTube URL');
+                    return;
+                }
+
+                if (!this.authToken) {
+                    this.showError('Please log in first. Set auth_token in localStorage.');
+                    return;
+                }
+
+                this.setStatus('starting', 'Starting job...', 0);
+                this.elements.startBtn.disabled = true;
+                this.elements.cancelBtn.disabled = false;
+
+                try {
+                    const request = {
+                        content_type: 'link',
+                        source: {
+                            type: 'url',
+                            data: videoUrl
+                        },
+                        options: {
+                            mode: mode,
+                            language: language,
+                            format: 'bundle',
+                            focus: 'summary'
+                        }
+                    };
+
+                    console.log('Starting async job:', request);
+                    const response = await this.makeRequest('/summarize/async', 'POST', request);
+                    console.log('Job started:', response);
+
+                    if (response.job_id) {
+                        this.currentJobId = response.job_id;
+                        this.setStatus('processing', 'Job started successfully', 10);
+                        this.startPolling(response.poll_url, response.result_url);
+                    } else {
+                        this.showError('Failed to start job');
+                        this.reset();
+                    }
+
+                } catch (error) {
+                    console.error('Start job error:', error);
+                    this.showError(`Failed to start job: ${error.message}`);
+                    this.reset();
+                }
+            }
+
+            startPolling(pollUrl, resultUrl) {
+                this.pollAttempts = 0;
+                this.pollInterval = setInterval(() => {
+                    this.pollJobStatus(pollUrl, resultUrl);
+                }, 3000);
+            }
+
+            async pollJobStatus(pollUrl, resultUrl) {
+                try {
+                    if (this.pollAttempts >= this.maxPollAttempts) {
+                        this.showError('Job timeout - exceeded maximum polling attempts');
+                        this.reset();
+                        return;
+                    }
+
+                    this.pollAttempts++;
+                    console.log(`Polling attempt ${this.pollAttempts}/${this.maxPollAttempts}`);
+
+                    const response = await this.makeRequest(pollUrl.replace(this.apiBaseUrl, ''), 'GET');
+                    console.log('Status response:', response);
+
+                    const statusData = response.data;
+                    this.retryCount = 0; // Reset retry count on successful request
+
+                    this.setStatus('processing', statusData.stage || statusData.status || 'Processing...', statusData.progress || 0);
+
+                    // Update logs
+                    if (statusData.logs && statusData.logs.length > 0) {
+                        this.updateLogs(statusData.logs);
+                    }
+
+                    if (statusData.status === 'completed') {
+                        this.getJobResult(resultUrl);
+                    } else if (statusData.status === 'failed') {
+                        this.showError(statusData.error || 'Job failed during processing');
+                        this.reset();
+                    }
+
+                } catch (error) {
+                    console.error('Polling error:', error);
+                    
+                    if (error.message.includes('Failed to fetch') || error.message.includes('Network error')) {
+                        if (this.retryCount < this.maxRetries) {
+                            this.retryCount++;
+                            console.log(`Retrying polling request (${this.retryCount}/${this.maxRetries})...`);
+                            this.setStatus('processing', `Connection issue - Retrying... (${this.retryCount}/${this.maxRetries})`, this.getCurrentProgress());
+                            
+                            // Exponential backoff
+                            const retryDelay = Math.pow(2, this.retryCount) * 2000;
+                            setTimeout(() => {
+                                this.pollJobStatus(pollUrl, resultUrl);
+                            }, retryDelay);
+                            return;
+                        } else {
+                            this.showError('Lost connection to the server. The job may still be processing in the background.');
+                            this.reset();
+                        }
+                    } else {
+                        this.showError(`Failed to check job status: ${error.message}`);
+                        this.reset();
+                    }
+                }
+            }
+
+            async getJobResult(resultUrl) {
+                try {
+                    const response = await this.makeRequest(resultUrl.replace(this.apiBaseUrl, ''), 'GET');
+                    console.log('Result response:', response);
+
+                    const resultData = response.data;
+                    this.setStatus('completed', 'Job completed successfully', 100);
+                    this.displayResults(resultData);
+                    this.reset();
+
+                } catch (error) {
+                    console.error('Get result error:', error);
+                    this.showError(`Failed to get job result: ${error.message}`);
+                    this.reset();
+                }
+            }
+
+            displayResults(result) {
+                this.elements.resultSection.style.display = 'block';
+                
+                // Summary content
+                this.elements.summaryContent.innerHTML = `
+                    <h4>AI Summary</h4>
+                    <p style="white-space: pre-wrap; line-height: 1.6;">${result.summary}</p>
+                `;
+
+                // Details content
+                this.elements.detailsContent.innerHTML = `
+                    <div class="metadata-grid">
+                        <div class="metadata-item">
+                            <h4>Video Information</h4>
+                            <p><strong>Title:</strong> ${result.source_info.title}</p>
+                            <p><strong>Author:</strong> ${result.source_info.author}</p>
+                            <p><strong>Published:</strong> ${result.source_info.published_date}</p>
+                            <p><strong>Words:</strong> ${result.source_info.word_count.toLocaleString()}</p>
+                        </div>
+                        <div class="metadata-item">
+                            <h4>Processing Details</h4>
+                            <p><strong>Processing Time:</strong> ${result.metadata.processing_time}</p>
+                            <p><strong>Tokens Used:</strong> ${result.metadata.tokens_used.toLocaleString()}</p>
+                            <p><strong>Confidence:</strong> ${(result.metadata.confidence * 100).toFixed(1)}%</p>
+                            <p><strong>Language:</strong> ${result.metadata.language}</p>
+                        </div>
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <h4>Video Description</h4>
+                        <p style="white-space: pre-wrap; line-height: 1.6; color: #666;">${result.source_info.description}</p>
+                    </div>
+                `;
+
+                // Bundle content
+                if (result.bundle) {
+                    this.elements.bundleContent.innerHTML = `
+                        <div class="metadata-grid">
+                            <div class="metadata-item">
+                                <h4>Bundle Information</h4>
+                                <p><strong>Video ID:</strong> ${result.bundle.video_id}</p>
+                                <p><strong>Language:</strong> ${result.bundle.language}</p>
+                                <p><strong>Format:</strong> ${result.bundle.format}</p>
+                                <p><strong>Segments:</strong> ${result.bundle.json.segments.length}</p>
+                            </div>
+                            <div class="metadata-item">
+                                <h4>AI Processing</h4>
+                                <p><strong>Model:</strong> ${result.bundle.meta.ai_model_used}</p>
+                                <p><strong>Tokens:</strong> ${result.bundle.meta.ai_tokens_used.toLocaleString()}</p>
+                                <p><strong>Confidence:</strong> ${(result.bundle.meta.ai_confidence_score * 100).toFixed(1)}%</p>
+                                <p><strong>Processing Time:</strong> ${result.bundle.meta.processing_time}</p>
+                            </div>
+                        </div>
+                        <div style="margin-top: 20px;">
+                            <h4>Article Content</h4>
+                            <div style="max-height: 200px; overflow-y: auto; background: #f9fafb; padding: 15px; border-radius: 6px; border: 1px solid #e5e7eb;">
+                                <p style="white-space: pre-wrap; line-height: 1.6; font-size: 14px;">${result.bundle.article.substring(0, 1000)}${result.bundle.article.length > 1000 ? '...' : ''}</p>
+                            </div>
+                        </div>
+                        <div style="margin-top: 20px;">
+                            <h4>Timeline Segments (First 5)</h4>
+                            <div style="max-height: 200px; overflow-y: auto; background: #f9fafb; padding: 15px; border-radius: 6px; border: 1px solid #e5e7eb;">
+                                ${result.bundle.json.segments.slice(0, 5).map((segment, index) => `
+                                    <div style="margin-bottom: 10px; padding: 10px; background: white; border-radius: 4px; border: 1px solid #e5e7eb;">
+                                        <div style="font-weight: 500; color: #374151; margin-bottom: 5px;">
+                                            ${this.formatTimestamp(segment.start)} - ${this.formatTimestamp(segment.start + segment.duration)}
+                                        </div>
+                                        <div style="font-size: 13px; color: #6b7280;">${segment.text}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    this.elements.bundleContent.innerHTML = '<p>No bundle data available</p>';
+                }
+            }
+
+            formatTimestamp(seconds) {
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                const secs = Math.floor(seconds % 60);
+                
+                if (hours > 0) {
+                    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                }
+                return `${minutes}:${secs.toString().padStart(2, '0')}`;
+            }
+
+            switchTab(tabName) {
+                // Update tab buttons
+                document.querySelectorAll('.result-tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+                // Update content
+                document.querySelectorAll('[id$="Content"]').forEach(content => {
+                    content.style.display = 'none';
+                });
+                document.getElementById(`${tabName}Content`).style.display = 'block';
+            }
+
+            setStatus(status, message, progress) {
+                this.elements.statusDisplay.style.display = 'block';
+                this.elements.statusText.textContent = message;
+                this.elements.progressFill.style.width = `${progress}%`;
+                this.elements.progressText.textContent = `${progress}%`;
+                
+                // Update status class
+                this.elements.statusDisplay.className = `status ${status}`;
+            }
+
+            updateLogs(logs) {
+                this.elements.logsDisplay.style.display = 'block';
+                const formattedLogs = logs.map(log => {
+                    if (typeof log === 'string') {
+                        return log;
+                    } else if (log.message) {
+                        return `[${log.level || 'info'}] ${log.message}`;
+                    }
+                    return JSON.stringify(log);
+                });
+                this.elements.logsContent.innerHTML = formattedLogs.join('<br>');
+            }
+
+            showError(message) {
+                this.elements.statusDisplay.style.display = 'block';
+                this.elements.statusDisplay.className = 'status failed';
+                this.elements.statusText.innerHTML = `<div class="error">${message}</div>`;
+            }
+
+            showSuccess(message) {
+                this.elements.statusDisplay.style.display = 'block';
+                this.elements.statusDisplay.className = 'status completed';
+                this.elements.statusText.innerHTML = `<div class="success">${message}</div>`;
+            }
+
+            cancelJob() {
+                if (this.pollInterval) {
+                    clearInterval(this.pollInterval);
+                    this.pollInterval = null;
+                }
+                this.setStatus('idle', 'Job cancelled', 0);
+                this.reset();
+            }
+
+            reset() {
+                if (this.pollInterval) {
+                    clearInterval(this.pollInterval);
+                    this.pollInterval = null;
+                }
+                
+                this.currentJobId = null;
+                this.retryCount = 0;
+                this.pollAttempts = 0;
+                
+                this.elements.startBtn.disabled = false;
+                this.elements.cancelBtn.disabled = true;
+                this.elements.statusDisplay.style.display = 'none';
+                this.elements.logsDisplay.style.display = 'none';
+                this.elements.resultSection.style.display = 'none';
+            }
+
+            getCurrentProgress() {
+                const progressText = this.elements.progressText.textContent;
+                return parseInt(progressText) || 0;
+            }
+
+            async makeRequest(endpoint, method = 'GET', data = null) {
+                const url = `${this.apiBaseUrl}${endpoint}`;
+                const config = {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    }
+                };
+
+                if (this.authToken) {
+                    config.headers['Authorization'] = `Bearer ${this.authToken}`;
+                }
+
+                if (data) {
+                    config.body = JSON.stringify(data);
+                }
+
+                console.log(`Making ${method} request to: ${url}`);
+                
+                const response = await fetch(url, config);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+
+                return await response.json();
+            }
+        }
+
+        // Initialize the test when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new AsyncYouTubeSummarizer();
+        });
+    </script>
+</body>
+</html>
+
+

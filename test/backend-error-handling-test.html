@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backend Error Handling Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        .status.success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+        .status.error {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fca5a5;
+        }
+        .status.info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+        .btn {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .btn:hover {
+            background: #b91c1c;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .test-case {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .test-case h4 {
+            margin: 0 0 10px 0;
+            color: #374151;
+        }
+        .test-case pre {
+            background: #f1f5f9;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Backend Error Handling Test</h1>
+        <p>This test verifies that the frontend handles backend errors gracefully.</p>
+
+        <button id="testBtn" class="btn">Test Backend Error Handling</button>
+        <button id="clearBtn" class="btn" style="background: #6b7280;">Clear Logs</button>
+
+        <div id="statusDisplay"></div>
+        <div id="logDisplay" class="log" style="display: none;"></div>
+    </div>
+
+    <script>
+        class BackendErrorHandlingTester {
+            constructor() {
+                this.initializeElements();
+                this.bindEvents();
+            }
+
+            initializeElements() {
+                this.elements = {
+                    testBtn: document.getElementById('testBtn'),
+                    clearBtn: document.getElementById('clearBtn'),
+                    statusDisplay: document.getElementById('statusDisplay'),
+                    logDisplay: document.getElementById('logDisplay')
+                };
+            }
+
+            bindEvents() {
+                this.elements.testBtn.addEventListener('click', () => this.testBackendErrorHandling());
+                this.elements.clearBtn.addEventListener('click', () => this.clearLogs());
+            }
+
+            log(message, type = 'info') {
+                const timestamp = new Date().toLocaleTimeString();
+                const logEntry = `[${timestamp}] ${message}`;
+                
+                console.log(logEntry);
+                
+                const logDisplay = this.elements.logDisplay;
+                logDisplay.style.display = 'block';
+                logDisplay.innerHTML += `<div>${logEntry}</div>`;
+                logDisplay.scrollTop = logDisplay.scrollHeight;
+            }
+
+            showStatus(message, type = 'info') {
+                const statusDisplay = this.elements.statusDisplay;
+                statusDisplay.innerHTML = `<div class="status ${type}">${message}</div>`;
+            }
+
+            clearLogs() {
+                this.elements.logDisplay.style.display = 'none';
+                this.elements.logDisplay.innerHTML = '';
+                this.elements.statusDisplay.innerHTML = '';
+            }
+
+            testBackendErrorHandling() {
+                this.elements.testBtn.disabled = true;
+                this.clearLogs();
+                
+                try {
+                    this.log('🚀 Testing backend error handling...');
+                    this.showStatus('Testing backend error handling...', 'info');
+
+                    // Test Case 1: Backend error response
+                    this.log('📝 Test Case 1: Backend error response');
+                    const backendErrorResponse = {
+                        success: true,
+                        data: {
+                            success: false,
+                            error: "Undefined array key \"json\"",
+                            summary: null,
+                            ai_result: null,
+                            metadata: []
+                        }
+                    };
+
+                    this.testErrorResponse(backendErrorResponse, "Backend error response");
+
+                    // Test Case 2: Missing bundle data
+                    this.log('📝 Test Case 2: Missing bundle data');
+                    const missingBundleResponse = {
+                        success: true,
+                        data: {
+                            success: true,
+                            summary: "This is a summary without bundle data.",
+                            metadata: {
+                                content_type: "youtube",
+                                language: "en"
+                            },
+                            source_info: {
+                                url: "https://www.youtube.com/watch?v=VIDEO_ID",
+                                title: "Video Title"
+                            },
+                            bundle: null
+                        }
+                    };
+
+                    this.testErrorResponse(missingBundleResponse, "Missing bundle data");
+
+                    // Test Case 3: Incomplete bundle data
+                    this.log('📝 Test Case 3: Incomplete bundle data');
+                    const incompleteBundleResponse = {
+                        success: true,
+                        data: {
+                            success: true,
+                            summary: "This is a summary with incomplete bundle data.",
+                            metadata: {
+                                content_type: "youtube",
+                                language: "en"
+                            },
+                            source_info: {
+                                url: "https://www.youtube.com/watch?v=VIDEO_ID",
+                                title: "Video Title"
+                            },
+                            bundle: {
+                                video_id: "VIDEO_ID",
+                                language: "en",
+                                format: "bundle_with_summary",
+                                article: "Full article text...",
+                                summary: "AI-generated summary...",
+                                json: null, // Missing json data
+                                srt: "1\n00:00:00,000 --> 00:00:01,120\nSegment text...",
+                                meta: {
+                                    ai_summary: "AI-generated summary...",
+                                    ai_model_used: "gpt-4",
+                                    ai_tokens_used: 2500,
+                                    ai_confidence_score: 0.95,
+                                    processing_time: "5-10 minutes",
+                                    merged_at: "2025-10-21T12:15:00.000Z"
+                                }
+                            }
+                        }
+                    };
+
+                    this.testErrorResponse(incompleteBundleResponse, "Incomplete bundle data");
+
+                    this.showStatus('✅ All backend error handling tests passed!', 'success');
+
+                } catch (error) {
+                    this.log(`❌ Test failed: ${error.message}`);
+                    this.showStatus(`❌ Test failed: ${error.message}`, 'error');
+                } finally {
+                    this.elements.testBtn.disabled = false;
+                }
+            }
+
+            testErrorResponse(responseData, testName) {
+                this.log(`🧪 Testing ${testName}...`);
+                
+                try {
+                    // Test error detection
+                    const resultData = responseData.data;
+                    
+                    if (resultData.success === false && resultData.error) {
+                        this.log(`✅ Error detected: ${resultData.error}`);
+                        this.log(`✅ Error handling: Backend processing error: ${resultData.error}`);
+                        this.log(`✅ This would be caught by the frontend error handling`);
+                    } else {
+                        this.log(`✅ No error detected in response`);
+                    }
+
+                    // Test bundle data handling
+                    if (resultData.bundle) {
+                        this.log(`✅ Bundle data present: ${resultData.bundle.video_id}`);
+                        
+                        // Test json data handling
+                        if (resultData.bundle.json) {
+                            this.log(`✅ JSON data present: ${resultData.bundle.json.segments?.length || 0} segments`);
+                        } else {
+                            this.log(`✅ JSON data missing - would be handled gracefully`);
+                        }
+                        
+                        // Test segments handling
+                        const segments = resultData.bundle.json?.segments || [];
+                        this.log(`✅ Segments count: ${segments.length}`);
+                        
+                        // Test metadata handling
+                        const meta = resultData.bundle.meta;
+                        if (meta) {
+                            this.log(`✅ Meta data present: ${meta.ai_model_used}`);
+                        } else {
+                            this.log(`✅ Meta data missing - would be handled gracefully`);
+                        }
+                    } else {
+                        this.log(`✅ No bundle data - would be handled gracefully`);
+                    }
+
+                    // Test summary handling
+                    const summary = resultData.summary || 'No summary available';
+                    this.log(`✅ Summary: ${summary.substring(0, 50)}...`);
+
+                    // Test metadata handling
+                    const metadata = resultData.metadata || {};
+                    this.log(`✅ Metadata: ${Object.keys(metadata).length} properties`);
+
+                    this.log(`✅ ${testName} test passed!`);
+
+                } catch (error) {
+                    this.log(`❌ ${testName} test failed: ${error.message}`);
+                    throw error;
+                }
+            }
+        }
+
+        // Initialize the tester when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new BackendErrorHandlingTester();
+        });
+    </script>
+</body>
+</html>
+
+

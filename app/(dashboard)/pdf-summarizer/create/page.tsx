@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import PasswordInput from "@/components/ui/password-input";
 import ResultDisplay, { SummaryResult } from "@/components/ui/result-display";
-import { fileApi, summarizeApi } from "@/lib/api-client";
+import { fileApi, summarizeApi, specializedSummarizeApi } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications";
 import { Brain, Upload, ArrowLeft, FileText } from "lucide-react";
@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 
 export default function PDFSummarizerCreatePage() {
   const { user } = useAuth();
-  const { showSuccess, showError } = useNotifications();
+  const { showSuccess, showError, showWarning } = useNotifications();
   const router = useRouter();
   
   const [language, setLanguage] = useState("en");
@@ -85,29 +85,72 @@ export default function PDFSummarizerCreatePage() {
         showWarning("Demo Mode", "Backend server is not responding. Using mock upload for demonstration purposes.");
       }
       
-      // Step 2: Create summary using the uploaded file
-      const summaryRequest = {
-        content_type: 'pdf' as const,
-        source: {
-          type: 'file' as const,
-          data: uploadResponse.file_upload.id.toString()
-        },
-        options: {
-          mode: mode,
-          language: language,
-          focus: focus
-        }
-      };
-      
-      console.log('Creating summary with request:', summaryRequest);
+      // Step 2: Create summary using the specialized file endpoint
+      console.log('Creating summary with specialized file endpoint...');
       let summaryResponse;
       
       try {
-        summaryResponse = await summarizeApi.summarize(summaryRequest);
+        // Use the specialized file endpoint directly with the File object
+        const asyncResponse = await specializedSummarizeApi.startFileJob(pdfFile, {
+          mode: mode,
+          language: language,
+          focus: focus
+        });
         
-        console.log('Summary created successfully:', summaryResponse);
-        console.log('File URL from response:', summaryResponse.file_url);
-        console.log('Source info from response:', summaryResponse.source_info);
+        console.log('File job response:', asyncResponse);
+        
+        // Check if this is an async job response (with job_id) or synchronous response
+        if (asyncResponse.job_id) {
+          // Async job response - need to poll for completion
+          console.log('Async job started:', asyncResponse);
+          console.log('Job ID:', asyncResponse.job_id);
+          console.log('Poll URL:', asyncResponse.poll_url);
+          console.log('Result URL:', asyncResponse.result_url);
+          
+          // Poll for completion
+          let attempts = 0;
+          const maxAttempts = 60; // 3 minutes max
+          
+          while (attempts < maxAttempts) {
+            try {
+              const statusResponse = asyncResponse.poll_url
+                ? await specializedSummarizeApi.getJobStatusByUrl(asyncResponse.poll_url)
+                : await specializedSummarizeApi.getJobStatus(asyncResponse.job_id);
+              
+              console.log(`Status check ${attempts + 1}:`, statusResponse);
+              
+              if (statusResponse.status === 'completed') {
+                // Get the final result
+                const resultResponse = asyncResponse.result_url
+                  ? await specializedSummarizeApi.getJobResultByUrl(asyncResponse.result_url)
+                  : await specializedSummarizeApi.getJobResult(asyncResponse.job_id);
+                
+                console.log('Final result:', resultResponse);
+                summaryResponse = resultResponse.data;
+                break;
+              } else if (statusResponse.status === 'failed') {
+                throw new Error(statusResponse.error || 'Job failed');
+              }
+              
+              // Wait before next poll
+              await new Promise(resolve => setTimeout(resolve, 3000));
+              attempts++;
+            } catch (pollError) {
+              console.error('Polling error:', pollError);
+              throw pollError;
+            }
+          }
+          
+          if (!summaryResponse) {
+            throw new Error('Job timeout - exceeded maximum polling attempts');
+          }
+        } else if (asyncResponse.success && asyncResponse.data && !asyncResponse.job_id) {
+          // Synchronous response - file was processed immediately
+          console.log('Synchronous response received - file processed immediately');
+          summaryResponse = asyncResponse.data;
+        } else {
+          throw new Error('Invalid response format from file endpoint');
+        }
       } catch (summaryError) {
         console.error('Summarization failed, backend might be down:', summaryError);
         console.log('Using mock response for demonstration...');
@@ -152,57 +195,28 @@ The document offers educational content that can help users learn about the subj
         showWarning("Demo Mode", "Backend server is not responding. Showing mock summary for demonstration purposes.");
       }
       
-      // Check both old and new response formats
-      const summary = summaryResponse.data?.summary || summaryResponse.summary;
-      const sourceInfo = summaryResponse.data?.source_info || summaryResponse.source_info;
-      const metadata = summaryResponse.data?.metadata || summaryResponse.metadata;
-      const uiHelpers = summaryResponse.data?.ui_helpers || summaryResponse.ui_helpers;
-      const aiResult = summaryResponse.data?.ai_result || summaryResponse.ai_result;
-
-      console.log('Summary response check:', {
-        hasSummary: !!summary,
-        hasDataSummary: !!summaryResponse.data?.summary,
-        summaryLength: summary?.length,
-        dataSummaryLength: summaryResponse.data?.summary?.length,
-        hasAiResult: !!aiResult,
-        hasSourceInfo: !!sourceInfo,
-        hasMetadata: !!metadata,
-        hasUiHelpers: !!uiHelpers,
-        summaryResponse: summaryResponse
-      });
-
-      if (summary) {
-        console.log('Creating summary result...');
-        console.log('Extracted data:', {
-          summary: summary.substring(0, 100) + '...',
-          aiResult: aiResult,
-          sourceInfo: sourceInfo,
-          metadata: metadata,
-          uiHelpers: uiHelpers
-        });
-        const summaryResult: SummaryResult = {
-          id: aiResult?.id?.toString() || Date.now().toString(),
-          content: summary,
-          contentType: "pdf",
-          source: {
-            title: sourceInfo?.title || pdfFile.name,
-            author: sourceInfo?.author,
-          },
-          metadata: {
-            processingTime: metadata?.processing_time || 0,
-            wordCount: sourceInfo?.word_count || 0,
-            confidence: metadata?.confidence || 0.95,
-            language: language
-          },
-          timestamp: new Date()
+      // Handle the new TextJobResultData response format
+      console.log('Summary response received:', summaryResponse);
+      
+      // Check if this is the new TextJobResultData format
+      if (summaryResponse.summary && summaryResponse.key_points && summaryResponse.confidence_score !== undefined) {
+        console.log('Detected TextJobResultData format');
+        
+        // Create a result that can be displayed by UniversalResultDisplay
+        const textResult = {
+          success: true,
+          summary: summaryResponse.summary,
+          key_points: summaryResponse.key_points,
+          confidence_score: summaryResponse.confidence_score,
+          model_used: summaryResponse.model_used
         };
-
-        console.log('Summary result created:', summaryResult);
-        setResult(summaryResult);
+        
+        console.log('Text result created:', textResult);
+        setResult(textResult);
         showSuccess("Success", "PDF summary created successfully!");
         
         // Navigate to the split view page to show PDF and summary together
-        let fileUrl = aiResult?.file_url || summaryResponse.file_url || uploadResponse.file_url;
+        let fileUrl = uploadResponse.file_url;
         
         // If the URL is relative, make it absolute
         if (fileUrl && !fileUrl.startsWith('http') && !fileUrl.startsWith('blob:')) {
@@ -210,23 +224,10 @@ The document offers educational content that can help users learn about the subj
         }
         
         console.log('Final file URL being used:', fileUrl);
-        console.log('Is it a blob URL?', fileUrl?.startsWith('blob:'));
-        console.log('Is it a server URL?', fileUrl?.startsWith('http://localhost:8000'));
         
         const analysisData = {
-          url: fileUrl, // Use the correct file URL
-          summary: {
-            ...summaryResult,
-            source: {
-              title: sourceInfo?.title || pdfFile.name,
-              author: sourceInfo?.author
-            },
-            metadata: {
-              wordCount: sourceInfo?.word_count,
-              processingTime: metadata?.processing_time,
-              confidence: summaryResult.metadata?.confidence || 0.95
-            }
-          }
+          url: fileUrl,
+          summary: textResult
         };
         
         // Store data for the analysis page
@@ -237,8 +238,94 @@ The document offers educational content that can help users learn about the subj
         console.log('Navigating to /pdf-analysis...');
         router.push('/pdf-analysis');
       } else {
-        console.log('No summary found in response, staying on current page');
-        showError("Error", "No summary was generated. Please try again.");
+        // Fallback to old format handling
+        const summary = summaryResponse.data?.summary || summaryResponse.summary;
+        const sourceInfo = summaryResponse.data?.source_info || summaryResponse.source_info;
+        const metadata = summaryResponse.data?.metadata || summaryResponse.metadata;
+        const uiHelpers = summaryResponse.data?.ui_helpers || summaryResponse.ui_helpers;
+        const aiResult = summaryResponse.data?.ai_result || summaryResponse.ai_result;
+
+        console.log('Summary response check:', {
+          hasSummary: !!summary,
+          hasDataSummary: !!summaryResponse.data?.summary,
+          summaryLength: summary?.length,
+          dataSummaryLength: summaryResponse.data?.summary?.length,
+          hasAiResult: !!aiResult,
+          hasSourceInfo: !!sourceInfo,
+          hasMetadata: !!metadata,
+          hasUiHelpers: !!uiHelpers,
+          summaryResponse: summaryResponse
+        });
+
+        if (summary) {
+          console.log('Creating summary result...');
+          console.log('Extracted data:', {
+            summary: summary.substring(0, 100) + '...',
+            aiResult: aiResult,
+            sourceInfo: sourceInfo,
+            metadata: metadata,
+            uiHelpers: uiHelpers
+          });
+          const summaryResult: SummaryResult = {
+            id: aiResult?.id?.toString() || Date.now().toString(),
+            content: summary,
+            contentType: "pdf",
+            source: {
+              title: sourceInfo?.title || pdfFile.name,
+              author: sourceInfo?.author,
+            },
+            metadata: {
+              processingTime: metadata?.processing_time || 0,
+              wordCount: sourceInfo?.word_count || 0,
+              confidence: metadata?.confidence || 0.95,
+              language: language
+            },
+            timestamp: new Date()
+          };
+
+          console.log('Summary result created:', summaryResult);
+          setResult(summaryResult);
+          showSuccess("Success", "PDF summary created successfully!");
+          
+          // Navigate to the split view page to show PDF and summary together
+          let fileUrl = aiResult?.file_url || summaryResponse.file_url || uploadResponse.file_url;
+          
+          // If the URL is relative, make it absolute
+          if (fileUrl && !fileUrl.startsWith('http') && !fileUrl.startsWith('blob:')) {
+            fileUrl = `http://localhost:8000${fileUrl}`;
+          }
+          
+          console.log('Final file URL being used:', fileUrl);
+          console.log('Is it a blob URL?', fileUrl?.startsWith('blob:'));
+          console.log('Is it a server URL?', fileUrl?.startsWith('http://localhost:8000'));
+          
+          const analysisData = {
+            url: fileUrl, // Use the correct file URL
+            summary: {
+              ...summaryResult,
+              source: {
+                title: sourceInfo?.title || pdfFile.name,
+                author: sourceInfo?.author
+              },
+              metadata: {
+                wordCount: sourceInfo?.word_count,
+                processingTime: metadata?.processing_time,
+                confidence: summaryResult.metadata?.confidence || 0.95
+              }
+            }
+          };
+          
+          // Store data for the analysis page
+          console.log('Analysis data being stored:', analysisData);
+          localStorage.setItem('pdfAnalysisData', JSON.stringify(analysisData));
+          
+          // Navigate to the split view
+          console.log('Navigating to /pdf-analysis...');
+          router.push('/pdf-analysis');
+        } else {
+          console.log('No summary found in response, staying on current page');
+          showError("Error", "No summary was generated. Please try again.");
+        }
       }
     } catch (error) {
       console.error("Summarization error:", error);

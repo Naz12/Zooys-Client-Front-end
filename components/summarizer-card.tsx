@@ -10,7 +10,7 @@ import LinkInput from "@/components/ui/link-input";
 import TextInput from "@/components/ui/text-input";
 import PasswordInput from "@/components/ui/password-input";
 import ResultDisplay, { SummaryResult } from "@/components/ui/result-display";
-import { summarizeApi, type SummarizeRequest, type SummarizeResponse, type UploadResponse } from "@/lib/api-client";
+import { summarizeApi, type SummarizeRequest, type SummarizeResponse, type AsyncSummarizeResponse, type JobStatusResponse, type JobResultResponse } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications";
 import {
@@ -32,6 +32,8 @@ export default function SummarizerCard() {
   const [activeContentType, setActiveContentType] = useState<ContentType>("youtube");
   const [language, setLanguage] = useState("en");
   const [isLoading, setIsLoading] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
+  const [pollingStatus, setPollingStatus] = useState("");
   const [inputValue, setInputValue] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<FileUploadItem[]>([]);
   const [uploadedMedia, setUploadedMedia] = useState<MediaUploadItem[]>([]);
@@ -76,7 +78,7 @@ export default function SummarizerCard() {
               data: inputValue.trim()
             },
             options: {
-              mode: "detailed",
+              mode: "bundle",
               language: language,
               focus: "summary"
             }
@@ -159,7 +161,58 @@ export default function SummarizerCard() {
           return;
       }
 
-      const response: SummarizeResponse = await summarizeApi.summarize(request);
+      // Start async job
+      const asyncResp: AsyncSummarizeResponse = await summarizeApi.summarizeAsync(request);
+
+      // Start polling with status updates
+      setIsPolling(true);
+      setPollingStatus("Job started, waiting for processing...");
+
+      // Poll status until completed/failed (with exponential backoff on network errors)
+      let finalSummary: SummarizeResponse | null = null;
+      let attempts = 0;
+      let delayMs = 2500; // Start with 2.5 seconds
+      while (attempts < 300) { // ~12.5 minutes max (300 * 2.5s)
+        try {
+          const status: JobStatusResponse = asyncResp.poll_url
+            ? await summarizeApi.getJobStatusByUrl(asyncResp.poll_url)
+            : await summarizeApi.getJobStatus(asyncResp.job_id);
+          if (status.status === 'completed') {
+            setPollingStatus("Processing completed, retrieving results...");
+            const result: JobResultResponse = asyncResp.result_url
+              ? await summarizeApi.getJobResultByUrl(asyncResp.result_url)
+              : await summarizeApi.getJobResult(asyncResp.job_id);
+            finalSummary = result.result || null;
+            break;
+          }
+          if (status.status === 'failed') {
+            throw new Error(status.error || 'Summarization failed');
+          }
+          
+          // Update polling status with progress info
+          const progressPercent = Math.round((attempts / 300) * 100);
+          setPollingStatus(`Processing... (${progressPercent}% of max time elapsed, attempt ${attempts + 1}/300)`);
+          
+          // Use variable delay: 2-3 seconds for normal polling
+          const pollDelay = Math.random() * 1000 + 2000; // 2000-3000ms
+          await new Promise(r => setTimeout(r, pollDelay));
+          attempts++;
+          continue;
+        } catch (err) {
+          // Network/backend unreachable: backoff and retry
+          setPollingStatus(`Connection issue, retrying in ${Math.round(delayMs/1000)}s... (attempt ${attempts + 1}/300)`);
+          await new Promise(r => setTimeout(r, delayMs));
+          delayMs = Math.min(10000, Math.floor(delayMs * 1.5));
+          attempts++;
+          continue;
+        }
+      }
+
+      if (!finalSummary) {
+        throw new Error('Timed out waiting for summarization result after 12+ minutes. The content might be very large or complex. Please try with smaller content or contact support if the issue persists.');
+      }
+
+      const response: SummarizeResponse = finalSummary;
       
       // Handle API errors
       if (response.error) {
@@ -208,6 +261,8 @@ export default function SummarizerCard() {
       showError("Error", error instanceof Error ? error.message : "Failed to summarize content");
     } finally {
       setIsLoading(false);
+      setIsPolling(false);
+      setPollingStatus("");
     }
   };
 
@@ -239,7 +294,42 @@ export default function SummarizerCard() {
         }
       };
 
-      const response: SummarizeResponse = await summarizeApi.summarize(requestWithPassword);
+      // Start async job with password
+      const asyncResp: AsyncSummarizeResponse = await summarizeApi.summarizeAsync(requestWithPassword);
+      let finalSummary: SummarizeResponse | null = null;
+      let attempts = 0;
+      let delayMs = 2000;
+      while (attempts < 180) {
+        try {
+          const status: JobStatusResponse = asyncResp.poll_url
+            ? await summarizeApi.getJobStatusByUrl(asyncResp.poll_url)
+            : await summarizeApi.getJobStatus(asyncResp.job_id);
+          if (status.status === 'completed') {
+            const result: JobResultResponse = asyncResp.result_url
+              ? await summarizeApi.getJobResultByUrl(asyncResp.result_url)
+              : await summarizeApi.getJobResult(asyncResp.job_id);
+            finalSummary = result.result || null;
+            break;
+          }
+          if (status.status === 'failed') {
+            throw new Error(status.error || 'Summarization failed');
+          }
+          await new Promise(r => setTimeout(r, 2000));
+          attempts++;
+          continue;
+        } catch (err) {
+          await new Promise(r => setTimeout(r, delayMs));
+          delayMs = Math.min(10000, Math.floor(delayMs * 1.5));
+          attempts++;
+          continue;
+        }
+      }
+
+      if (!finalSummary) {
+        throw new Error('Timed out waiting for summarization result after 12+ minutes. The content might be very large or complex. Please try with smaller content or contact support if the issue persists.');
+      }
+
+      const response: SummarizeResponse = finalSummary;
       
       // Handle API errors
       if (response.error) {
@@ -414,7 +504,7 @@ export default function SummarizerCard() {
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processing...
+                {isPolling ? "Processing..." : "Summarizing..."}
               </>
             ) : (
               "Summarize Now"
@@ -427,6 +517,19 @@ export default function SummarizerCard() {
             Batch Summarize
           </Button>
         </div>
+        
+        {/* Polling Status Display */}
+        {isPolling && pollingStatus && (
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center">
+              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+              <span className="text-sm text-blue-800">{pollingStatus}</span>
+            </div>
+            <div className="mt-2 text-xs text-blue-600">
+              This may take several minutes for large or complex content. Please keep this page open.
+            </div>
+          </div>
+        )}
 
         {/* Password Input for PDF */}
         <PasswordInput

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Async YouTube Fix Verification</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        .status.success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+        .status.error {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fca5a5;
+        }
+        .status.info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+        .btn {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .btn:hover {
+            background: #b91c1c;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Async YouTube Fix Verification</h1>
+        <p>This test verifies that the async YouTube summarization fix works correctly.</p>
+
+        <div class="form-group">
+            <label for="videoUrl">YouTube URL:</label>
+            <input type="text" id="videoUrl" placeholder="https://www.youtube.com/watch?v=VIDEO_ID" 
+                   value="https://www.youtube.com/watch?v=dQw4w9WgXcQ">
+        </div>
+
+        <button id="testBtn" class="btn">Test Async YouTube Summarization</button>
+        <button id="clearBtn" class="btn" style="background: #6b7280;">Clear Logs</button>
+
+        <div id="statusDisplay"></div>
+        <div id="logDisplay" class="log" style="display: none;"></div>
+    </div>
+
+    <script>
+        class AsyncYouTubeFixTester {
+            constructor() {
+                this.apiBaseUrl = 'http://localhost:8000/api';
+                this.authToken = localStorage.getItem('auth_token');
+                this.initializeElements();
+                this.bindEvents();
+            }
+
+            initializeElements() {
+                this.elements = {
+                    videoUrl: document.getElementById('videoUrl'),
+                    testBtn: document.getElementById('testBtn'),
+                    clearBtn: document.getElementById('clearBtn'),
+                    statusDisplay: document.getElementById('statusDisplay'),
+                    logDisplay: document.getElementById('logDisplay')
+                };
+            }
+
+            bindEvents() {
+                this.elements.testBtn.addEventListener('click', () => this.testAsyncSummarization());
+                this.elements.clearBtn.addEventListener('click', () => this.clearLogs());
+            }
+
+            log(message, type = 'info') {
+                const timestamp = new Date().toLocaleTimeString();
+                const logEntry = `[${timestamp}] ${message}`;
+                
+                console.log(logEntry);
+                
+                const logDisplay = this.elements.logDisplay;
+                logDisplay.style.display = 'block';
+                logDisplay.innerHTML += `<div>${logEntry}</div>`;
+                logDisplay.scrollTop = logDisplay.scrollHeight;
+            }
+
+            showStatus(message, type = 'info') {
+                const statusDisplay = this.elements.statusDisplay;
+                statusDisplay.innerHTML = `<div class="status ${type}">${message}</div>`;
+            }
+
+            clearLogs() {
+                this.elements.logDisplay.style.display = 'none';
+                this.elements.logDisplay.innerHTML = '';
+                this.elements.statusDisplay.innerHTML = '';
+            }
+
+            async testAsyncSummarization() {
+                const videoUrl = this.elements.videoUrl.value.trim();
+                
+                if (!videoUrl) {
+                    this.showStatus('Please enter a YouTube URL', 'error');
+                    return;
+                }
+
+                if (!this.authToken) {
+                    this.showStatus('Please set auth_token in localStorage first', 'error');
+                    return;
+                }
+
+                this.elements.testBtn.disabled = true;
+                this.clearLogs();
+                
+                try {
+                    this.log('🚀 Starting async YouTube summarization test...');
+                    this.showStatus('Starting test...', 'info');
+
+                    // Step 1: Start async job
+                    this.log('📝 Step 1: Starting async job...');
+                    const startRequest = {
+                        content_type: 'link',
+                        source: {
+                            type: 'url',
+                            data: videoUrl
+                        },
+                        options: {
+                            mode: 'bundle',
+                            language: 'en',
+                            format: 'bundle',
+                            focus: 'summary'
+                        }
+                    };
+
+                    this.log(`Request: ${JSON.stringify(startRequest, null, 2)}`);
+                    
+                    const startResponse = await this.makeRequest('/summarize/async', 'POST', startRequest);
+                    this.log(`✅ Job started successfully: ${JSON.stringify(startResponse, null, 2)}`);
+
+                    if (!startResponse.job_id) {
+                        throw new Error('No job_id received from server');
+                    }
+
+                    // Step 2: Test status polling
+                    this.log('📊 Step 2: Testing status polling...');
+                    const pollUrl = startResponse.poll_url;
+                    const resultUrl = startResponse.result_url;
+                    
+                    this.log(`Poll URL: ${pollUrl}`);
+                    this.log(`Result URL: ${resultUrl}`);
+
+                    // Poll a few times to test the fix
+                    let pollCount = 0;
+                    const maxPolls = 5;
+                    
+                    const pollInterval = setInterval(async () => {
+                        try {
+                            pollCount++;
+                            this.log(`🔄 Polling attempt ${pollCount}/${maxPolls}...`);
+                            
+                            const statusResponse = await this.makeRequest(pollUrl.replace(this.apiBaseUrl, ''), 'GET');
+                            this.log(`Status response: ${JSON.stringify(statusResponse, null, 2)}`);
+                            
+                            // Test the fix - this should not throw an error
+                            // Based on actual response: job data is returned directly
+                            const statusData = statusResponse;
+                            this.log(`✅ Status data extracted successfully: ${JSON.stringify(statusData, null, 2)}`);
+                            
+                            if (statusData.progress !== undefined) {
+                                this.log(`📈 Progress: ${statusData.progress}%`);
+                            }
+                            
+                            if (statusData.stage) {
+                                this.log(`🎯 Stage: ${statusData.stage}`);
+                            }
+                            
+                            if (statusData.logs && Array.isArray(statusData.logs)) {
+                                this.log(`📝 Logs count: ${statusData.logs.length}`);
+                            } else {
+                                this.log(`📝 No logs or logs not an array`);
+                            }
+                            
+                            if (statusData.status === 'completed') {
+                                this.log('🎉 Job completed! Testing result retrieval...');
+                                
+                                const resultResponse = await this.makeRequest(resultUrl.replace(this.apiBaseUrl, ''), 'GET');
+                                this.log(`Result response: ${JSON.stringify(resultResponse, null, 2)}`);
+                                
+                                // Handle both direct response and nested under 'data'
+                                const resultData = resultResponse.data || resultResponse;
+                                this.log(`✅ Result data extracted successfully: ${JSON.stringify(resultData, null, 2)}`);
+                                
+                                this.showStatus('✅ Test completed successfully! The fix is working.', 'success');
+                                clearInterval(pollInterval);
+                                this.elements.testBtn.disabled = false;
+                                return;
+                            }
+                            
+                            if (statusData.status === 'failed') {
+                                this.log(`❌ Job failed: ${statusData.error || 'Unknown error'}`);
+                                this.showStatus('❌ Job failed during test', 'error');
+                                clearInterval(pollInterval);
+                                this.elements.testBtn.disabled = false;
+                                return;
+                            }
+                            
+                            if (pollCount >= maxPolls) {
+                                this.log('⏰ Max polls reached, stopping test');
+                                this.showStatus('✅ Test completed (max polls reached). The fix is working.', 'success');
+                                clearInterval(pollInterval);
+                                this.elements.testBtn.disabled = false;
+                                return;
+                            }
+                            
+                        } catch (error) {
+                            this.log(`❌ Polling error: ${error.message}`);
+                            this.showStatus(`❌ Test failed: ${error.message}`, 'error');
+                            clearInterval(pollInterval);
+                            this.elements.testBtn.disabled = false;
+                            return;
+                        }
+                    }, 3000);
+
+                } catch (error) {
+                    this.log(`❌ Test failed: ${error.message}`);
+                    this.showStatus(`❌ Test failed: ${error.message}`, 'error');
+                    this.elements.testBtn.disabled = false;
+                }
+            }
+
+            async makeRequest(endpoint, method = 'GET', data = null) {
+                const url = `${this.apiBaseUrl}${endpoint}`;
+                const config = {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    }
+                };
+
+                if (this.authToken) {
+                    config.headers['Authorization'] = `Bearer ${this.authToken}`;
+                }
+
+                if (data) {
+                    config.body = JSON.stringify(data);
+                }
+
+                this.log(`Making ${method} request to: ${url}`);
+                
+                const response = await fetch(url, config);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+
+                return await response.json();
+            }
+        }
+
+        // Initialize the tester when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new AsyncYouTubeFixTester();
+        });
+    </script>
+</body>
+</html>

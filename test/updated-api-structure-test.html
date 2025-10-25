@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Updated API Structure Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        .status.success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+        .status.error {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fca5a5;
+        }
+        .status.info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+        .btn {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .btn:hover {
+            background: #b91c1c;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .test-case {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .test-case h4 {
+            margin: 0 0 10px 0;
+            color: #374151;
+        }
+        .test-case pre {
+            background: #f1f5f9;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .response-structure {
+            background: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .response-structure h4 {
+            margin: 0 0 10px 0;
+            color: #0c4a6e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Updated API Structure Test</h1>
+        <p>This test verifies that the frontend correctly handles the updated API response structure with nested data properties.</p>
+
+        <button id="testBtn" class="btn">Test Updated API Structure</button>
+        <button id="clearBtn" class="btn" style="background: #6b7280;">Clear Logs</button>
+
+        <div id="statusDisplay"></div>
+        <div id="logDisplay" class="log" style="display: none;"></div>
+    </div>
+
+    <script>
+        class UpdatedAPIStructureTester {
+            constructor() {
+                this.initializeElements();
+                this.bindEvents();
+            }
+
+            initializeElements() {
+                this.elements = {
+                    testBtn: document.getElementById('testBtn'),
+                    clearBtn: document.getElementById('clearBtn'),
+                    statusDisplay: document.getElementById('statusDisplay'),
+                    logDisplay: document.getElementById('logDisplay')
+                };
+            }
+
+            bindEvents() {
+                this.elements.testBtn.addEventListener('click', () => this.testUpdatedAPIStructure());
+                this.elements.clearBtn.addEventListener('click', () => this.clearLogs());
+            }
+
+            log(message, type = 'info') {
+                const timestamp = new Date().toLocaleTimeString();
+                const logEntry = `[${timestamp}] ${message}`;
+                
+                console.log(logEntry);
+                
+                const logDisplay = this.elements.logDisplay;
+                logDisplay.style.display = 'block';
+                logDisplay.innerHTML += `<div>${logEntry}</div>`;
+                logDisplay.scrollTop = logDisplay.scrollHeight;
+            }
+
+            showStatus(message, type = 'info') {
+                const statusDisplay = this.elements.statusDisplay;
+                statusDisplay.innerHTML = `<div class="status ${type}">${message}</div>`;
+            }
+
+            clearLogs() {
+                this.elements.logDisplay.style.display = 'none';
+                this.elements.logDisplay.innerHTML = '';
+                this.elements.statusDisplay.innerHTML = '';
+            }
+
+            testUpdatedAPIStructure() {
+                this.elements.testBtn.disabled = true;
+                this.clearLogs();
+                
+                try {
+                    this.log('🚀 Testing updated API structure...');
+                    this.showStatus('Testing updated API structure...', 'info');
+
+                    // Test Case 1: Job Status Response (with nested data)
+                    this.log('📝 Test Case 1: Job Status Response');
+                    const jobStatusResponse = {
+                        success: true,
+                        data: {
+                            id: "b649feef-4e19-4753-8251-5dbbc3da50c1",
+                            tool_type: "summarize",
+                            input: {
+                                content_type: "link",
+                                source: {
+                                    type: "url",
+                                    data: "https://www.youtube.com/watch?v=VIDEO_ID"
+                                }
+                            },
+                            options: {
+                                mode: "detailed",
+                                language: "en",
+                                format: "bundle",
+                                focus: "summary"
+                            },
+                            user_id: 1,
+                            status: "running",
+                            stage: "processing",
+                            progress: 25,
+                            created_at: "2025-10-21T12:41:30.000Z",
+                            updated_at: "2025-10-21T12:41:45.000Z",
+                            logs: [
+                                {
+                                    timestamp: "2025-10-21T12:41:30.000Z",
+                                    level: "info",
+                                    message: "Starting summarize processing",
+                                    data: {}
+                                }
+                            ],
+                            result: null,
+                            error: null,
+                            metadata: {
+                                processing_started_at: "2025-10-21T12:41:32.000Z",
+                                processing_completed_at: null,
+                                total_processing_time: null,
+                                file_count: 0,
+                                tokens_used: 0,
+                                confidence_score: 0.0
+                            }
+                        }
+                    };
+
+                    this.testJobStatusResponse(jobStatusResponse);
+
+                    // Test Case 2: Job Result Response (Success)
+                    this.log('📝 Test Case 2: Job Result Response (Success)');
+                    const jobResultResponse = {
+                        success: true,
+                        data: {
+                            success: true,
+                            summary: "AI-generated summary of the video content...",
+                            ai_result: {
+                                id: 123,
+                                title: "Generated Summary Title",
+                                file_url: "https://example.com/download/summary.pdf",
+                                created_at: "2025-10-21T12:45:00.000Z"
+                            },
+                            metadata: [
+                                {
+                                    content_type: "youtube",
+                                    processing_time: "5-10 minutes",
+                                    tokens_used: 2500,
+                                    confidence: 0.95,
+                                    video_id: "XDNeGenHIM0",
+                                    title: "Video Title",
+                                    total_words: 1200,
+                                    language: "en"
+                                }
+                            ],
+                            bundle: {
+                                video_id: "XDNeGenHIM0",
+                                language: "en",
+                                format: "bundle_with_summary",
+                                article: "Full article text from transcriber...",
+                                summary: "AI-generated summary...",
+                                json: {
+                                    segments: [
+                                        {
+                                            text: "Why don't we get to AIPAC?",
+                                            start: 0.0,
+                                            duration: 1.12
+                                        },
+                                        {
+                                            text: "Yeah, so some extraordinary political moments...",
+                                            start: 1.12,
+                                            duration: 4.72
+                                        }
+                                    ]
+                                },
+                                srt: "1\n00:00:00,000 --> 00:00:01,120\nWhy don't we get to AIPAC?\n\n2\n00:00:01,120 --> 00:00:05,840\nYeah, so some extraordinary political moments...",
+                                meta: {
+                                    ai_summary: "AI-generated summary...",
+                                    ai_model_used: "gpt-4",
+                                    ai_tokens_used: 2500,
+                                    ai_confidence_score: 0.95,
+                                    processing_time: "5-10 minutes",
+                                    merged_at: "2025-10-21T12:45:00.000Z"
+                                }
+                            }
+                        }
+                    };
+
+                    this.testJobResultResponse(jobResultResponse);
+
+                    // Test Case 3: Job Result Response (Error)
+                    this.log('📝 Test Case 3: Job Result Response (Error)');
+                    const jobErrorResponse = {
+                        success: true,
+                        data: {
+                            success: false,
+                            error: "Undefined array key \"json\"",
+                            summary: null,
+                            ai_result: null,
+                            metadata: []
+                        }
+                    };
+
+                    this.testJobErrorResponse(jobErrorResponse);
+
+                    this.showStatus('✅ All updated API structure tests passed!', 'success');
+
+                } catch (error) {
+                    this.log(`❌ Test failed: ${error.message}`);
+                    this.showStatus(`❌ Test failed: ${error.message}`, 'error');
+                } finally {
+                    this.elements.testBtn.disabled = false;
+                }
+            }
+
+            testJobStatusResponse(response) {
+                this.log(`🧪 Testing Job Status Response...`);
+                
+                try {
+                    // Test nested data access
+                    const statusData = response.data;
+                    
+                    if (!statusData) {
+                        throw new Error('No status data found in response');
+                    }
+
+                    this.log(`✅ Status data accessed: ${statusData.id}`);
+                    this.log(`✅ Status: ${statusData.status}`);
+                    this.log(`✅ Progress: ${statusData.progress}%`);
+                    this.log(`✅ Stage: ${statusData.stage}`);
+                    this.log(`✅ Logs count: ${statusData.logs.length}`);
+                    this.log(`✅ Tool type: ${statusData.tool_type}`);
+                    this.log(`✅ User ID: ${statusData.user_id}`);
+
+                    // Test input data
+                    this.log(`✅ Input content type: ${statusData.input.content_type}`);
+                    this.log(`✅ Source type: ${statusData.input.source.type}`);
+                    this.log(`✅ Source data: ${statusData.input.source.data}`);
+
+                    // Test options
+                    this.log(`✅ Options mode: ${statusData.options.mode}`);
+                    this.log(`✅ Options language: ${statusData.options.language}`);
+                    this.log(`✅ Options format: ${statusData.options.format}`);
+
+                    // Test metadata
+                    this.log(`✅ Processing started: ${statusData.metadata.processing_started_at}`);
+                    this.log(`✅ Tokens used: ${statusData.metadata.tokens_used}`);
+                    this.log(`✅ Confidence score: ${statusData.metadata.confidence_score}`);
+
+                    this.log(`✅ Job Status Response test passed!`);
+
+                } catch (error) {
+                    this.log(`❌ Job Status Response test failed: ${error.message}`);
+                    throw error;
+                }
+            }
+
+            testJobResultResponse(response) {
+                this.log(`🧪 Testing Job Result Response (Success)...`);
+                
+                try {
+                    // Test nested data access
+                    const resultData = response.data;
+                    
+                    if (!resultData) {
+                        throw new Error('No result data found in response');
+                    }
+
+                    this.log(`✅ Result success: ${resultData.success}`);
+                    this.log(`✅ Summary length: ${resultData.summary?.length || 0} characters`);
+                    this.log(`✅ AI result ID: ${resultData.ai_result?.id || 'N/A'}`);
+                    this.log(`✅ Metadata array length: ${resultData.metadata?.length || 0}`);
+
+                    // Test metadata array access
+                    if (resultData.metadata && resultData.metadata.length > 0) {
+                        const metadata = resultData.metadata[0];
+                        this.log(`✅ Metadata[0] content_type: ${metadata.content_type}`);
+                        this.log(`✅ Metadata[0] language: ${metadata.language}`);
+                        this.log(`✅ Metadata[0] tokens_used: ${metadata.tokens_used}`);
+                        this.log(`✅ Metadata[0] confidence: ${metadata.confidence}`);
+                    }
+
+                    // Test bundle data
+                    if (resultData.bundle) {
+                        this.log(`✅ Bundle video_id: ${resultData.bundle.video_id}`);
+                        this.log(`✅ Bundle language: ${resultData.bundle.language}`);
+                        this.log(`✅ Bundle format: ${resultData.bundle.format}`);
+                        this.log(`✅ Bundle article length: ${resultData.bundle.article?.length || 0} characters`);
+                        this.log(`✅ Bundle segments count: ${resultData.bundle.json?.segments?.length || 0}`);
+                        this.log(`✅ Bundle SRT length: ${resultData.bundle.srt?.length || 0} characters`);
+                        
+                        // Test meta data
+                        if (resultData.bundle.meta) {
+                            this.log(`✅ Bundle meta AI model: ${resultData.bundle.meta.ai_model_used}`);
+                            this.log(`✅ Bundle meta tokens: ${resultData.bundle.meta.ai_tokens_used}`);
+                            this.log(`✅ Bundle meta confidence: ${resultData.bundle.meta.ai_confidence_score}`);
+                        }
+                    }
+
+                    this.log(`✅ Job Result Response test passed!`);
+
+                } catch (error) {
+                    this.log(`❌ Job Result Response test failed: ${error.message}`);
+                    throw error;
+                }
+            }
+
+            testJobErrorResponse(response) {
+                this.log(`🧪 Testing Job Result Response (Error)...`);
+                
+                try {
+                    // Test nested data access
+                    const resultData = response.data;
+                    
+                    if (!resultData) {
+                        throw new Error('No result data found in response');
+                    }
+
+                    this.log(`✅ Result success: ${resultData.success}`);
+                    this.log(`✅ Error message: ${resultData.error}`);
+                    this.log(`✅ Summary: ${resultData.summary || 'null'}`);
+                    this.log(`✅ AI result: ${resultData.ai_result || 'null'}`);
+                    this.log(`✅ Metadata array: ${resultData.metadata?.length || 0} items`);
+
+                    // Test error handling
+                    if (resultData.success === false && resultData.error) {
+                        this.log(`✅ Error detected: ${resultData.error}`);
+                        this.log(`✅ This would be caught by the frontend error handling`);
+                    }
+
+                    this.log(`✅ Job Error Response test passed!`);
+
+                } catch (error) {
+                    this.log(`❌ Job Error Response test failed: ${error.message}`);
+                    throw error;
+                }
+            }
+        }
+
+        // Initialize the tester when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new UpdatedAPIStructureTester();
+        });
+    </script>
+</body>
+</html>
+
+

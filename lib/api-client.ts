@@ -21,7 +21,11 @@ import type {
   PDFSummariesResponse,
   PDFSummaryResponse,
   PDFSummaryCreateRequest,
-  PDFSummaryCreateResponse
+  PDFSummaryCreateResponse,
+  AsyncSummarizeRequest,
+  AsyncSummarizeResponse,
+  JobStatusResponse,
+  JobResultResponse
 } from './types/api';
 
 // API base URL - Include /api prefix to match backend
@@ -104,14 +108,14 @@ export class ApiClient {
       console.log(`Making request to: ${url}`);
       console.log(`Request config:`, config);
       
-      // Add timeout for API requests (60 seconds for flashcard generation, 45 seconds for async operations, 30 seconds for others)
+      // Add timeout for API requests (60 seconds for flashcard generation, 120 seconds for async operations, 30 seconds for others)
       const controller = new AbortController();
       let timeoutDuration = 30000; // Default 30 seconds
       
       if (endpoint.includes('/flashcards/generate')) {
         timeoutDuration = 60000; // 60 seconds for flashcard generation
       } else if (endpoint.includes('/summarize/async') || endpoint.includes('/async')) {
-        timeoutDuration = 45000; // 45 seconds for async operations
+        timeoutDuration = 120000; // 120 seconds for async job initialization
       }
       
       const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
@@ -248,7 +252,7 @@ export class ApiClient {
           if (endpoint.includes('/flashcards/generate')) {
             timeoutMessage = 'Request timeout - Flashcard generation is taking longer than expected. Please try again.';
           } else if (endpoint.includes('/summarize/async') || endpoint.includes('/async')) {
-            timeoutMessage = 'Request timeout - Async job initialization is taking longer than expected. The backend might be processing a heavy workload. Please try again in a few moments.';
+            timeoutMessage = 'Request timeout - Async job initialization is taking longer than expected (2+ minutes). The backend might be processing a heavy workload. Please try again in a few moments.';
           }
           
           throw new Error(timeoutMessage);
@@ -439,7 +443,7 @@ export class ApiClient {
           if (endpoint.includes('/flashcards/generate')) {
             timeoutMessage = 'Request timeout - Flashcard generation is taking longer than expected. Please try again.';
           } else if (endpoint.includes('/summarize/async') || endpoint.includes('/async')) {
-            timeoutMessage = 'Request timeout - Async job initialization is taking longer than expected. The backend might be processing a heavy workload. Please try again in a few moments.';
+            timeoutMessage = 'Request timeout - Async job initialization is taking longer than expected (2+ minutes). The backend might be processing a heavy workload. Please try again in a few moments.';
           }
           
           throw new Error(timeoutMessage);
@@ -592,6 +596,114 @@ export const aiToolsApi = {
     }),
 };
 
+// Async YouTube Summarization API
+export const asyncYouTubeApi = {
+  // Start async YouTube summarization job
+  startJob: (request: AsyncSummarizeRequest) =>
+    apiClient.post<AsyncSummarizeResponse>(API_ENDPOINTS.SUMMARIZE_ASYNC, request),
+  
+  // Check job status
+  getJobStatus: (jobId: string) =>
+    apiClient.get<JobStatusResponse>(`${API_ENDPOINTS.SUMMARIZE_STATUS}/${jobId}`),
+  
+  // Get job result
+  getJobResult: (jobId: string) =>
+    apiClient.get<JobResultResponse>(`${API_ENDPOINTS.SUMMARIZE_RESULT}/${jobId}`),
+  
+  // Helper: use absolute poll/result URLs from backend response
+  getJobStatusByUrl: (pollUrl: string) => {
+    try {
+      const url = new URL(pollUrl);
+      const endpoint = url.pathname.replace(/^\/api/, '');
+      return apiClient.get<JobStatusResponse>(endpoint);
+    } catch {
+      const endpoint = pollUrl.replace(/^http(s)?:\/\/[^/]+/, '').replace(/^\/api/, '');
+      return apiClient.get<JobStatusResponse>(endpoint);
+    }
+  },
+
+  getJobResultByUrl: (resultUrl: string) => {
+    try {
+      const url = new URL(resultUrl);
+      const endpoint = url.pathname.replace(/^\/api/, '');
+      return apiClient.get<JobResultResponse>(endpoint);
+    } catch {
+      const endpoint = resultUrl.replace(/^http(s)?:\/\/[^/]+/, '').replace(/^\/api/, '');
+      return apiClient.get<JobResultResponse>(endpoint);
+    }
+  },
+};
+
+// Specialized API endpoints for different input types
+export const specializedSummarizeApi = {
+  // YouTube Video Summarization
+  startYouTubeJob: (url: string, options: any = {}) =>
+    apiClient.post<AsyncSummarizeResponse>('/summarize/async/youtube', { url, options }),
+  
+  // Text Summarization
+  startTextJob: (text: string, options: any = {}) =>
+    apiClient.post<AsyncSummarizeResponse>('/summarize/async/text', { text, options }),
+  
+  // Audio/Video File Summarization
+  startAudioVideoJob: (file: File, options: any = {}) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('options', JSON.stringify(options));
+    return apiClient.post<AsyncSummarizeResponse>('/summarize/async/audiovideo', formData);
+  },
+  
+  // General File Upload Summarization
+  startFileJob: (file: File, options: any = {}) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('options', JSON.stringify(options));
+    return apiClient.post<AsyncSummarizeResponse>('/summarize/async/file', formData);
+  },
+  
+  // Link Summarization
+  startLinkJob: (url: string, options: any = {}) =>
+    apiClient.post<AsyncSummarizeResponse>('/summarize/link', { url, options }),
+  
+  // Image Summarization
+  startImageJob: (file: File, options: any = {}) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('options', JSON.stringify(options));
+    return apiClient.post<AsyncSummarizeResponse>('/summarize/async/image', formData);
+  },
+  
+  // Shared status and result methods
+  getJobStatus: (jobId: string) =>
+    apiClient.get<JobStatusResponse>(`${API_ENDPOINTS.SUMMARIZE_STATUS}/${jobId}`),
+  
+  getJobResult: (jobId: string) =>
+    apiClient.get<JobResultResponse>(`${API_ENDPOINTS.SUMMARIZE_RESULT}/${jobId}`),
+  
+  // Helper: use absolute poll/result URLs from backend response
+  getJobStatusByUrl: (pollUrl: string) => {
+    try {
+      const url = new URL(pollUrl);
+      const endpoint = url.pathname.replace(/^\/api/, '');
+      return apiClient.get<JobStatusResponse>(endpoint);
+    } catch {
+      const endpoint = pollUrl.replace(/^http(s)?:\/\/[^/]+/, '').replace(/^\/api/, '');
+      return apiClient.get<JobStatusResponse>(endpoint);
+    }
+  },
+  
+  // Helper: use absolute result URL from backend response
+  getJobResultByUrl: (resultUrl: string) => {
+    try {
+      const url = new URL(resultUrl);
+      const endpoint = url.pathname.replace(/^\/api/, '');
+      return apiClient.get<JobResultResponse>(endpoint);
+    } catch {
+      const endpoint = resultUrl.replace(/^http(s)?:\/\/[^/]+/, '').replace(/^\/api/, '');
+      return apiClient.get<JobResultResponse>(endpoint);
+    }
+  }
+};
+
 export const chatApi = {
   sendMessage: (request: ChatRequest) =>
     apiClient.post<ChatResponse>(API_ENDPOINTS.CHAT, request),
@@ -608,7 +720,7 @@ export interface SummarizeRequest {
     data: string;
   };
   options: {
-    mode: 'detailed' | 'brief';
+    mode: 'detailed' | 'brief' | 'bundle';
     language: string;
     focus?: 'summary' | 'analysis' | 'key_points';
     password?: string;
@@ -834,6 +946,31 @@ export const summarizeApi = {
   
   getJobResult: (jobId: string) =>
     apiClient.get<JobResultResponse>(`${API_ENDPOINTS.SUMMARIZE_RESULT}/${jobId}`),
+
+  // Helpers: use absolute poll/result URLs from backend response
+  getJobStatusByUrl: (pollUrl: string) => {
+    try {
+      const url = new URL(pollUrl);
+      // url.pathname is like '/api/summarize/status/<id>' → strip leading '/api'
+      const endpoint = url.pathname.replace(/^\/api/, '');
+      return apiClient.get<JobStatusResponse>(endpoint);
+    } catch {
+      // Fallback: assume caller passed a path
+      const endpoint = pollUrl.replace(/^http(s)?:\/\/[^/]+/, '').replace(/^\/api/, '');
+      return apiClient.get<JobStatusResponse>(endpoint);
+    }
+  },
+
+  getJobResultByUrl: (resultUrl: string) => {
+    try {
+      const url = new URL(resultUrl);
+      const endpoint = url.pathname.replace(/^\/api/, '');
+      return apiClient.get<JobResultResponse>(endpoint);
+    } catch {
+      const endpoint = resultUrl.replace(/^http(s)?:\/\/[^/]+/, '').replace(/^\/api/, '');
+      return apiClient.get<JobResultResponse>(endpoint);
+    }
+  },
   
   // File upload
   uploadFile: (file: File, contentType: string) =>

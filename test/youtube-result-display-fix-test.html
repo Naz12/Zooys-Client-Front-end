@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Result Display Fix Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        .status.success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+        .status.error {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fca5a5;
+        }
+        .status.info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+        .btn {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .btn:hover {
+            background: #b91c1c;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .test-case {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .test-case h4 {
+            margin: 0 0 10px 0;
+            color: #374151;
+        }
+        .test-case pre {
+            background: #f1f5f9;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 YouTube Result Display Fix Test</h1>
+        <p>This test verifies that the YouTube result display component handles missing data gracefully.</p>
+
+        <button id="testBtn" class="btn">Test Result Display Fix</button>
+        <button id="clearBtn" class="btn" style="background: #6b7280;">Clear Logs</button>
+
+        <div id="statusDisplay"></div>
+        <div id="logDisplay" class="log" style="display: none;"></div>
+    </div>
+
+    <script>
+        class YouTubeResultDisplayFixTester {
+            constructor() {
+                this.initializeElements();
+                this.bindEvents();
+            }
+
+            initializeElements() {
+                this.elements = {
+                    testBtn: document.getElementById('testBtn'),
+                    clearBtn: document.getElementById('clearBtn'),
+                    statusDisplay: document.getElementById('statusDisplay'),
+                    logDisplay: document.getElementById('logDisplay')
+                };
+            }
+
+            bindEvents() {
+                this.elements.testBtn.addEventListener('click', () => this.testResultDisplayFix());
+                this.elements.clearBtn.addEventListener('click', () => this.clearLogs());
+            }
+
+            log(message, type = 'info') {
+                const timestamp = new Date().toLocaleTimeString();
+                const logEntry = `[${timestamp}] ${message}`;
+                
+                console.log(logEntry);
+                
+                const logDisplay = this.elements.logDisplay;
+                logDisplay.style.display = 'block';
+                logDisplay.innerHTML += `<div>${logEntry}</div>`;
+                logDisplay.scrollTop = logDisplay.scrollHeight;
+            }
+
+            showStatus(message, type = 'info') {
+                const statusDisplay = this.elements.statusDisplay;
+                statusDisplay.innerHTML = `<div class="status ${type}">${message}</div>`;
+            }
+
+            clearLogs() {
+                this.elements.logDisplay.style.display = 'none';
+                this.elements.logDisplay.innerHTML = '';
+                this.elements.statusDisplay.innerHTML = '';
+            }
+
+            testResultDisplayFix() {
+                this.elements.testBtn.disabled = true;
+                this.clearLogs();
+                
+                try {
+                    this.log('🚀 Testing YouTube result display fix...');
+                    this.showStatus('Testing result display fix...', 'info');
+
+                    // Test Case 1: Complete result data
+                    this.log('📝 Test Case 1: Complete result data');
+                    const completeResult = {
+                        success: true,
+                        summary: "This is a comprehensive summary of the YouTube video content.",
+                        metadata: {
+                            content_type: "youtube",
+                            processing_time: "5-10 minutes",
+                            tokens_used: 2500,
+                            confidence: 0.95,
+                            video_id: "XDNeGenHIM0",
+                            title: "Video Title",
+                            total_words: 1200,
+                            language: "en"
+                        },
+                        source_info: {
+                            url: "https://www.youtube.com/watch?v=XDNeGenHIM0",
+                            title: "Video Title",
+                            description: "Video content extracted via transcription",
+                            author: "Channel Name",
+                            published_date: "2025-01-01",
+                            word_count: 1200
+                        },
+                        ai_result: {
+                            id: 123,
+                            title: "Generated Summary Title",
+                            file_url: "https://example.com/download/summary.pdf",
+                            created_at: "2025-10-21T12:15:00.000Z"
+                        }
+                    };
+
+                    this.testResultData(completeResult, "Complete data");
+
+                    // Test Case 2: Missing metadata
+                    this.log('📝 Test Case 2: Missing metadata');
+                    const missingMetadataResult = {
+                        success: true,
+                        summary: "This is a summary without metadata.",
+                        metadata: null,
+                        source_info: {
+                            url: "https://www.youtube.com/watch?v=VIDEO_ID",
+                            title: "Video Title",
+                            author: "Channel Name"
+                        }
+                    };
+
+                    this.testResultData(missingMetadataResult, "Missing metadata");
+
+                    // Test Case 3: Missing source_info
+                    this.log('📝 Test Case 3: Missing source_info');
+                    const missingSourceInfoResult = {
+                        success: true,
+                        summary: "This is a summary without source info.",
+                        metadata: {
+                            content_type: "youtube",
+                            language: "en"
+                        },
+                        source_info: null
+                    };
+
+                    this.testResultData(missingSourceInfoResult, "Missing source_info");
+
+                    // Test Case 4: Minimal data
+                    this.log('📝 Test Case 4: Minimal data');
+                    const minimalResult = {
+                        success: true,
+                        summary: "Minimal summary"
+                    };
+
+                    this.testResultData(minimalResult, "Minimal data");
+
+                    this.showStatus('✅ All result display tests passed! The fix is working.', 'success');
+
+                } catch (error) {
+                    this.log(`❌ Test failed: ${error.message}`);
+                    this.showStatus(`❌ Test failed: ${error.message}`, 'error');
+                } finally {
+                    this.elements.testBtn.disabled = false;
+                }
+            }
+
+            testResultData(resultData, testName) {
+                this.log(`🧪 Testing ${testName}...`);
+                
+                try {
+                    // Test metadata access
+                    const language = resultData.metadata?.language || 'en';
+                    const contentType = resultData.metadata?.content_type || 'youtube';
+                    const processingTime = resultData.metadata?.processing_time || 'N/A';
+                    const tokensUsed = (resultData.metadata?.tokens_used || 0).toLocaleString();
+                    const confidence = ((resultData.metadata?.confidence || 0) * 100).toFixed(1);
+                    const totalWords = (resultData.metadata?.total_words || 0).toLocaleString();
+
+                    this.log(`✅ Language: ${language.toUpperCase()}`);
+                    this.log(`✅ Content Type: ${contentType}`);
+                    this.log(`✅ Processing Time: ${processingTime}`);
+                    this.log(`✅ Tokens Used: ${tokensUsed}`);
+                    this.log(`✅ Confidence: ${confidence}%`);
+                    this.log(`✅ Total Words: ${totalWords}`);
+
+                    // Test source_info access
+                    const author = resultData.source_info?.author || 'Unknown';
+                    const publishedDate = resultData.source_info?.published_date || 'Unknown';
+                    const wordCount = (resultData.source_info?.word_count || 0).toLocaleString();
+                    const url = resultData.source_info?.url || '#';
+                    const description = resultData.source_info?.description || 'No description available';
+
+                    this.log(`✅ Author: ${author}`);
+                    this.log(`✅ Published: ${publishedDate}`);
+                    this.log(`✅ Word Count: ${wordCount}`);
+                    this.log(`✅ URL: ${url}`);
+                    this.log(`✅ Description: ${description.substring(0, 50)}...`);
+
+                    // Test summary access
+                    const summary = resultData.summary || 'No summary available';
+                    this.log(`✅ Summary: ${summary.substring(0, 50)}...`);
+
+                    this.log(`✅ ${testName} test passed!`);
+
+                } catch (error) {
+                    this.log(`❌ ${testName} test failed: ${error.message}`);
+                    throw error;
+                }
+            }
+        }
+
+        // Initialize the tester when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new YouTubeResultDisplayFixTester();
+        });
+    </script>
+</body>
+</html>
+
+

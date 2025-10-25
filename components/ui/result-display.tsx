@@ -209,7 +209,7 @@ export default function ResultDisplay({
               <span>{result.content.split(' ').length} words</span>
             </div>
           </div>
-          <div className="prose prose-sm max-w-none text-muted-foreground whitespace-pre-line bg-muted/20 border border-border rounded-lg p-4">
+          <div className="prose prose-sm max-w-none text-gray-900 dark:text-gray-100 whitespace-pre-line bg-muted/20 border border-border rounded-lg p-4">
             {result.content}
           </div>
         </div>

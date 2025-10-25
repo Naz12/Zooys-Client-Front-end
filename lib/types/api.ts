@@ -118,6 +118,184 @@ export interface YouTubeSummarizeResponse {
   video_info: YouTubeVideoInfo;
 }
 
+// Async YouTube Summarization Types
+export interface AsyncSummarizeRequest {
+  content_type: 'link';
+  source: {
+    type: 'url';
+    data: string;
+  };
+  options: {
+    mode: 'detailed' | 'brief' | 'bundle';
+    language: string;
+    format?: 'bundle';
+    focus?: 'summary' | 'analysis' | 'key_points';
+  };
+}
+
+export interface AsyncSummarizeResponse {
+  success: boolean;
+  message: string;
+  job_id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  poll_url: string;
+  result_url: string;
+}
+
+export interface JobStatusData {
+  id: string;
+  tool_type: string;
+  input: {
+    content_type: string;
+    source: {
+      type: string;
+      data: string;
+    };
+  };
+  options: {
+    mode: string;
+    language: string;
+    format: string;
+    focus: string;
+  };
+  user_id: number;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  stage: 'initializing' | 'processing' | 'completed' | 'failed';
+  progress: number;
+  created_at: string;
+  updated_at: string;
+  logs: Array<{
+    timestamp: string;
+    level: string;
+    message: string;
+    data: Record<string, any>;
+  }>;
+  result: any;
+  error: string | null;
+  metadata: {
+    processing_started_at: string | null;
+    processing_completed_at: string | null;
+    total_processing_time: string | null;
+    file_count: number;
+    tokens_used: number;
+    confidence_score: number;
+  };
+}
+
+export interface JobStatusResponse {
+  success: boolean;
+  data: JobStatusData;
+}
+
+export interface BundleSegment {
+  text: string;
+  start: number;
+  duration: number;
+}
+
+export interface BundleData {
+  video_id: string;
+  language: string;
+  format: string;
+  article: string;
+  summary: string;
+  json: {
+    segments: BundleSegment[];
+  };
+  srt: string;
+  meta: {
+    ai_summary: string;
+    ai_model_used: string;
+    ai_tokens_used: number;
+    ai_confidence_score: number;
+    processing_time: string;
+    merged_at: string;
+  };
+}
+
+export interface SourceInfo {
+  url: string;
+  title: string;
+  description: string;
+  author: string;
+  published_date: string;
+  word_count: number;
+}
+
+export interface AIResult {
+  id: number;
+  title: string;
+  file_url: string;
+  created_at: string;
+}
+
+// Base result data interface
+export interface BaseJobResultData {
+  success: boolean;
+  summary?: string;
+  error?: string;
+}
+
+// Text summary result data
+export interface TextJobResultData extends BaseJobResultData {
+  summary: string;
+  key_points: string[];
+  confidence_score: number;
+  model_used: string;
+}
+
+// YouTube summary result data
+export interface YouTubeJobResultData extends BaseJobResultData {
+  summary: string;
+  ai_result?: {
+    id: number;
+    title: string;
+    file_url: string;
+    created_at: string;
+  };
+  metadata?: Array<{
+    content_type: string;
+    processing_time?: string;
+    tokens_used?: number;
+    confidence?: number;
+    video_id?: string;
+    title?: string;
+    total_words?: number;
+    language?: string;
+  }>;
+  bundle?: {
+    video_id: string;
+    language: string;
+    format: string;
+    article: string;
+    summary: string;
+    json: {
+      segments: Array<{
+        text: string;
+        start: number;
+        duration: number;
+      }>;
+    };
+    srt: string;
+    meta: {
+      ai_summary: string;
+      ai_model_used: string;
+      ai_tokens_used: number;
+      ai_confidence_score: number;
+      processing_time: string;
+      merged_at: string;
+    };
+  };
+}
+
+// Union type for all possible result data
+export type JobResultData = TextJobResultData | YouTubeJobResultData | BaseJobResultData;
+
+export interface JobResultResponse {
+  success: boolean;
+  data: JobResultData;
+}
+
 export interface PDFSummarizeRequest {
   file_path: string;
   mode?: 'brief' | 'detailed' | 'key_points';

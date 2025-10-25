@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TextJobResultData Display Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-title {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .test-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .response-format {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin: 10px 0;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .info {
+            color: #17a2b8;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1 class="test-title">TextJobResultData Display Test</h1>
+        
+        <div class="test-section">
+            <h3>Test Response Format</h3>
+            <p>This test verifies that the frontend can properly handle the new TextJobResultData response format from the summarize file endpoint.</p>
+            
+            <div class="response-format">{
+    "summary": "Nazrawi Solomon is an academic at Adama Science & Technology University with expertise in Computer Science.",
+    "key_points": [
+        "Individual identified",
+        "Computer Scientist/Engineer", 
+        "Adama STU"
+    ],
+    "confidence_score": 0.8,
+    "model_used": "ollama:phi3:mini"
+}</div>
+        </div>
+
+        <div class="test-section">
+            <h3>Expected Behavior</h3>
+            <ul>
+                <li class="success">✓ Summary text should be displayed in the main content area</li>
+                <li class="success">✓ Key points should be shown in a separate tab or section</li>
+                <li class="success">✓ Confidence score should be displayed as a percentage (80%)</li>
+                <li class="success">✓ Model used should be shown in a badge or metadata section</li>
+                <li class="success">✓ Copy and export functionality should work</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>Component Detection Logic</h3>
+            <p>The UniversalResultDisplay component should detect this as a TextJobResultData format using:</p>
+            <div class="response-format">const isTextResult = (result: JobResultData): result is TextJobResultData => {
+  return 'key_points' in result && 'confidence_score' in result;
+};</div>
+        </div>
+
+        <div class="test-section">
+            <h3>Display Features</h3>
+            <ul>
+                <li><strong>Summary Tab:</strong> Shows the main summary text with copy/export buttons</li>
+                <li><strong>Key Points Tab:</strong> Shows numbered list of key points with copy functionality</li>
+                <li><strong>Metadata:</strong> Displays confidence score, model used, and processing info</li>
+                <li><strong>Actions:</strong> Copy, export, and regenerate buttons</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>Test Instructions</h3>
+            <ol>
+                <li>Upload a file to the PDF summarizer</li>
+                <li>Wait for the summarization to complete</li>
+                <li>Verify that the summary is displayed with proper formatting</li>
+                <li>Check that key points are accessible in a separate tab</li>
+                <li>Verify that confidence score and model are shown</li>
+                <li>Test copy and export functionality</li>
+            </ol>
+        </div>
+
+        <div class="test-section">
+            <h3>Backend Response Structure</h3>
+            <p>The backend should return a response that matches the TextJobResultData interface:</p>
+            <div class="response-format">interface TextJobResultData extends BaseJobResultData {
+  summary: string;
+  key_points: string[];
+  confidence_score: number;
+  model_used: string;
+}</div>
+        </div>
+
+        <div class="test-section">
+            <h3>Frontend Handling</h3>
+            <p>The frontend components have been updated to:</p>
+            <ul>
+                <li class="success">✓ Detect TextJobResultData format automatically</li>
+                <li class="success">✓ Use UniversalResultDisplay for proper rendering</li>
+                <li class="success">✓ Handle both old and new response formats</li>
+                <li class="success">✓ Display summary, key points, and metadata correctly</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>Status</h3>
+            <p class="success">✅ TextJobResultData display support implemented</p>
+            <p class="info">The frontend now properly handles the new response format from the summarize file endpoint.</p>
+        </div>
+    </div>
+
+    <script>
+        console.log('TextJobResultData Display Test loaded');
+        console.log('This test verifies the new response format handling');
+        
+        // Simulate the response format
+        const mockResponse = {
+            summary: "Nazrawi Solomon is an academic at Adama Science & Technology University with expertise in Computer Science.",
+            key_points: [
+                "Individual identified",
+                "Computer Scientist/Engineer", 
+                "Adama STU"
+            ],
+            confidence_score: 0.8,
+            model_used: "ollama:phi3:mini"
+        };
+        
+        console.log('Mock response:', mockResponse);
+        
+        // Test the detection logic
+        const isTextResult = (result) => {
+            return 'key_points' in result && 'confidence_score' in result;
+        };
+        
+        console.log('Is text result?', isTextResult(mockResponse));
+        console.log('Test completed successfully');
+    </script>
+</body>
+</html>

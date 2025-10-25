@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import LinkInput from "@/components/ui/link-input";
-import ResultDisplay, { SummaryResult } from "@/components/ui/result-display";
-import { summarizeApi, aiToolsApi, type SummarizeRequest, type SummarizeResponse, type AsyncSummarizeResponse, type JobStatusResponse, type JobResultResponse } from "@/lib/api-client";
+import YouTubeResultDisplay from "@/components/youtube/youtube-result-display";
+import UniversalResultDisplay from "@/components/universal-result-display";
+import { useAsyncYouTubeSummarizer } from "@/lib/hooks/use-async-youtube-summarizer";
+import { specializedSummarizeApi } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications";
-import { Youtube, ArrowLeft, Settings, Brain } from "lucide-react";
+import { Youtube, ArrowLeft, Settings, Brain, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import BackendStatus from "@/components/backend-status";
@@ -17,163 +19,21 @@ export default function YouTubeSummarizerPage() {
   const { showSuccess, showError } = useNotifications();
   
   const [language, setLanguage] = useState("en");
-  const [isLoading, setIsLoading] = useState(false);
   const [inputValue, setInputValue] = useState("");
-  const [result, setResult] = useState<SummaryResult | null>(null);
   
-  // Async polling state
-  const [isPolling, setIsPolling] = useState(false);
-  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
-  const [jobProgress, setJobProgress] = useState(0);
-  const [jobStatus, setJobStatus] = useState<string>("");
-  const [jobLogs, setJobLogs] = useState<string[]>([]);
-  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
-  const maxRetries = 3;
-
-  // Cleanup polling on component unmount
-  useEffect(() => {
-    return () => {
-      if (pollingTimeoutRef.current) {
-        clearTimeout(pollingTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Polling function for async job status with retry logic
-  const pollJobStatus = async (jobId: string, currentRetry: number = 0): Promise<void> => {
-    try {
-      const statusResponse = await summarizeApi.getJobStatus(jobId);
-      console.log('Job status:', statusResponse);
-      
-      // Reset retry count on successful request
-      setRetryCount(0);
-      
-      // Handle the actual backend response structure
-      const responseData = statusResponse.data || statusResponse;
-      
-      // Extract progress (handle both direct progress and nested structure)
-      const progress = responseData.progress || 0;
-      setJobProgress(progress);
-      
-      // Extract status message
-      const statusMessage = responseData.stage || responseData.status || "Processing...";
-      setJobStatus(statusMessage);
-      
-      // Extract and format logs
-      const rawLogs = responseData.logs || [];
-      const formattedLogs = rawLogs.map((log: any) => {
-        if (typeof log === 'string') {
-          return log;
-        } else if (log.message) {
-          return `[${log.level || 'info'}] ${log.message}`;
-        }
-        return JSON.stringify(log);
-      });
-      setJobLogs(formattedLogs);
-      
-      if (responseData.status === 'completed') {
-        // Get the final result
-        const resultResponse = await summarizeApi.getJobResult(jobId);
-        console.log('Job result:', resultResponse);
-        
-        // Handle the actual result structure
-        const resultData = resultResponse.data || resultResponse;
-        const result = resultData.result || resultData;
-        
-        if (result) {
-          // Extract summary from various possible locations
-          const summary = result.summary || 
-                         result.data?.summary || 
-                         result.ai_result?.result_data?.summary ||
-                         result.result_data?.summary;
-          
-          if (summary && summary.trim()) {
-            const summaryResult: SummaryResult = {
-              id: Date.now().toString(),
-              content: summary,
-              contentType: "youtube",
-              source: {
-                title: result.data?.source_info?.title || 
-                       result.source_info?.title || 
-                       result.ai_result?.title || 
-                       "YouTube Video",
-                url: result.data?.source_info?.url || 
-                     result.source_info?.url || 
-                     inputValue,
-                author: result.data?.source_info?.author || 
-                        result.source_info?.author,
-                views: result.data?.source_info?.published_date || 
-                       result.source_info?.published_date,
-              },
-              metadata: {
-                processingTime: parseFloat((result.data?.metadata?.processing_time || 
-                                          result.metadata?.processing_time || 
-                                          '0s').replace(/[^\d.]/g, '')),
-                wordCount: result.data?.source_info?.word_count || 
-                          result.source_info?.word_count || 0,
-                confidence: result.data?.metadata?.confidence || 
-                           result.metadata?.confidence || 0.95,
-                language: language
-              },
-              timestamp: new Date()
-            };
-            
-            setResult(summaryResult);
-            showSuccess("Success", "YouTube video summarized successfully!");
-          } else {
-            showError("Error", "No summary content was generated. The video might be too short or have no audio content.");
-          }
-        } else {
-          showError("Error", resultData.error || resultResponse.error || "Failed to get job result.");
-        }
-        
-        // Stop polling
-        setIsPolling(false);
-        setIsLoading(false);
-        setCurrentJobId(null);
-        setRetryCount(0);
-        
-      } else if (responseData.status === 'failed') {
-        showError("Error", resultData.error || responseData.error || "Job failed during processing.");
-        setIsPolling(false);
-        setIsLoading(false);
-        setCurrentJobId(null);
-        setRetryCount(0);
-        
-      } else {
-        // Continue polling every 2 seconds
-        pollingTimeoutRef.current = setTimeout(() => pollJobStatus(jobId, 0), 2000);
-      }
-      
-    } catch (error) {
-      console.error('Polling error:', error);
-      
-      // Handle network errors with retry logic
-      if (error instanceof Error && error.message.includes('Failed to fetch')) {
-        if (currentRetry < maxRetries) {
-          console.log(`Retrying polling request (${currentRetry + 1}/${maxRetries})...`);
-          setRetryCount(currentRetry + 1);
-          setJobStatus(`Connection issue - Retrying... (${currentRetry + 1}/${maxRetries})`);
-          
-          // Exponential backoff: 2s, 4s, 8s
-          const retryDelay = Math.pow(2, currentRetry) * 2000;
-          pollingTimeoutRef.current = setTimeout(() => pollJobStatus(jobId, currentRetry + 1), retryDelay);
-          return;
-        } else {
-          showError("Connection Error", "Lost connection to the server. The job may still be processing in the background. Please refresh the page to check status.");
-        }
-      } else {
-        showError("Error", `Failed to check job status: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-      
-      // Stop polling after max retries or non-network errors
-      setIsPolling(false);
-      setIsLoading(false);
-      setCurrentJobId(null);
-      setRetryCount(0);
-    }
-  };
+  // Use the async YouTube summarizer hook
+  const {
+    status,
+    progress,
+    stage,
+    logs,
+    result,
+    error,
+    retryCount,
+    startJob,
+    cancelJob,
+    reset,
+  } = useAsyncYouTubeSummarizer();
 
   const handleSummarize = async () => {
     if (!user) {
@@ -193,61 +53,12 @@ export default function YouTubeSummarizerPage() {
       return;
     }
 
-    setIsLoading(true);
-    setResult(null);
-    setJobProgress(0);
-    setJobStatus("");
-    setJobLogs([]);
-
     try {
-      const request: SummarizeRequest = {
-        content_type: "link",
-        source: {
-          type: "url",
-          data: inputValue.trim()
-        },
-        options: {
-          mode: "detailed",
-          language: language,
-          focus: "summary"
-        }
-      };
-
-      console.log('Starting async YouTube summarization:', request);
-      
-      // Start async job
-      const asyncResponse: AsyncSummarizeResponse = await summarizeApi.summarizeAsync(request);
-      console.log('Async job started:', asyncResponse);
-      
-      if (asyncResponse.job_id) {
-        setCurrentJobId(asyncResponse.job_id);
-        setIsPolling(true);
-        setJobStatus("Job started successfully");
-        
-        // Start polling for job completion
-        await pollJobStatus(asyncResponse.job_id);
-      } else {
-        showError("Error", "Failed to start async job. Please try again.");
-        setIsLoading(false);
-      }
-      
+      await startJob(inputValue.trim(), language, 'bundle');
+      showSuccess("Success", "YouTube summarization job started!");
     } catch (error) {
-      console.error("Async summarization error:", error);
-      
-      // Check for specific error types
-      if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch')) {
-          showError("Connection Error", "Cannot connect to the backend server. Please ensure the server is running on http://localhost:8000");
-        } else if (error.message.includes('CORS') || error.message.includes('blocked by CORS policy')) {
-          showError("CORS Configuration Error", "The backend server is running but CORS is not configured properly.\n\nTo fix this:\n1. The backend needs to allow requests from http://localhost:3000\n2. Add CORS middleware to your backend server\n3. See the CORS setup guide in md/backend-cors-setup.md\n\nThis is a backend configuration issue, not a frontend problem.");
-        } else {
-          showError("Error", error.message);
-        }
-      } else {
-        showError("Error", "Failed to start YouTube summarization. Please check your connection and try again.");
-      }
-      
-      setIsLoading(false);
+      console.error("Summarization error:", error);
+      showError("Error", error instanceof Error ? error.message : "Failed to start summarization");
     }
   };
 
@@ -261,6 +72,16 @@ export default function YouTubeSummarizerPage() {
 
   const handleShare = () => {
     console.log("Sharing result");
+  };
+
+  const handleCancel = () => {
+    cancelJob();
+    showSuccess("Cancelled", "Processing cancelled successfully");
+  };
+
+  const handleReset = () => {
+    reset();
+    setInputValue("");
   };
 
   return (
@@ -310,17 +131,17 @@ export default function YouTubeSummarizerPage() {
                   placeholder="Enter YouTube URL (e.g., https://www.youtube.com/watch?v=... or https://www.youtube.com/shorts/...)"
                 />
 
-                {/* Summarize Button */}
-                <div className="flex justify-center">
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <Button
                     onClick={handleSummarize}
-                    disabled={isLoading || isPolling || !inputValue.trim()}
+                    disabled={status === 'processing' || status === 'starting' || !inputValue.trim()}
                     className="w-full sm:w-auto bg-red-600 hover:bg-red-500 text-white px-8 py-2"
                   >
-                    {isLoading || isPolling ? (
+                    {status === 'processing' || status === 'starting' ? (
                       <>
                         <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                        {isPolling ? `Processing... ${jobProgress}%` : "Starting Job..."}
+                        {status === 'processing' ? `Processing... ${progress}%` : "Starting Job..."}
                       </>
                     ) : (
                       <>
@@ -329,60 +150,75 @@ export default function YouTubeSummarizerPage() {
                       </>
                     )}
                   </Button>
+                  
+                  {status === 'processing' && (
+                    <Button
+                      onClick={handleCancel}
+                      variant="outline"
+                      className="w-full sm:w-auto text-red-600 border-red-600 hover:bg-red-50"
+                    >
+                      Cancel Processing
+                    </Button>
+                  )}
+                  
+                  {(status === 'completed' || status === 'failed') && (
+                    <Button
+                      onClick={handleReset}
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                    >
+                      Start New Summary
+                    </Button>
+                  )}
                 </div>
 
                 {/* Progress Indicator */}
-                {isPolling && (
+                {(status === 'processing' || status === 'starting') && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Progress</span>
-                      <span className="font-medium">{jobProgress}%</span>
+                      <span className="font-medium">{progress}%</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div 
                         className="bg-red-600 h-2 rounded-full transition-all duration-300 ease-out"
-                        style={{ width: `${jobProgress}%` }}
+                        style={{ width: `${progress}%` }}
                       />
                     </div>
-                    {jobStatus && (
+                    {stage && (
                       <div className="text-sm text-muted-foreground text-center">
-                        {jobStatus}
+                        {stage}
                       </div>
                     )}
-                    {jobLogs.length > 0 && (
+                    {logs.length > 0 && (
                       <div className="bg-gray-50 rounded-lg p-3 max-h-32 overflow-y-auto">
                         <div className="text-xs text-muted-foreground mb-2">Processing Logs:</div>
-                        {jobLogs.map((log, index) => (
+                        {logs.map((log, index) => (
                           <div key={index} className="text-xs text-gray-600 mb-1">
                             {log}
                           </div>
                         ))}
                       </div>
                     )}
-                    {isPolling && (
-                      <div className="flex justify-center mt-3">
-                        <Button
-                          onClick={() => {
-                            if (pollingTimeoutRef.current) {
-                              clearTimeout(pollingTimeoutRef.current);
-                              pollingTimeoutRef.current = null;
-                            }
-                            setIsPolling(false);
-                            setIsLoading(false);
-                            setCurrentJobId(null);
-                            setJobProgress(0);
-                            setJobStatus("");
-                            setJobLogs([]);
-                            setRetryCount(0);
-                          }}
-                          variant="outline"
-                          size="sm"
-                          className="text-red-600 border-red-600 hover:bg-red-50"
-                        >
-                          Cancel Processing
-                        </Button>
+                    {retryCount > 0 && (
+                      <div className="flex items-center gap-2 text-sm text-amber-600">
+                        <AlertCircle className="h-4 w-4" />
+                        <span>Retrying connection... ({retryCount}/5)</span>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Error Display */}
+                {status === 'failed' && error && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                      <div>
+                        <h4 className="font-medium text-red-800">Processing Failed</h4>
+                        <p className="text-sm text-red-700 mt-1">{error}</p>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -451,8 +287,8 @@ export default function YouTubeSummarizerPage() {
           </Card>
 
           {/* Results Display */}
-          {result && (
-            <ResultDisplay
+          {result && status === 'completed' && (
+            <UniversalResultDisplay
               result={result}
               onRegenerate={handleRegenerate}
               onExport={handleExport}

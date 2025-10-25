@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications";
+import UniversalResultDisplay from "@/components/universal-result-display";
 import { 
   FileText, 
   ArrowLeft, 
@@ -221,24 +222,41 @@ export default function PDFAnalysisPage() {
             </div>
           </div>
 
-          {/* Fixed Header */}
-          <div className="flex-shrink-0 p-4 border-b border-border bg-card">
-            <h2 className="text-lg font-semibold mb-2">
-              Summary of {summaryData.source?.title || 'PDF Document'}
-            </h2>
-            <div className="text-sm text-muted-foreground">
-              {summaryData.source?.author && `By ${summaryData.source.author} • `}
-              {summaryData.metadata?.wordCount} words • {summaryData.metadata?.processingTime}s processing time
-            </div>
-          </div>
-          
-          {/* Scrollable Content Area */}
-          <div className="flex-1 overflow-y-auto p-4" style={{ maxHeight: 'calc(100vh - 300px)' }}>
-            <div className="prose prose-sm max-w-none">
-              <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                {summaryData.content}
-              </div>
-            </div>
+          {/* Summary Display */}
+          <div className="flex-1 overflow-y-auto p-4" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+            {/* Check if this is the new TextJobResultData format */}
+            {summaryData.summary && summaryData.key_points && summaryData.confidence_score !== undefined ? (
+              <UniversalResultDisplay
+                result={summaryData}
+                onRegenerate={handleRegenerate}
+                onExport={handleExport}
+                showMetadata={true}
+                showActions={true}
+              />
+            ) : (
+              /* Fallback to old format display */
+              <>
+                {/* Fixed Header */}
+                <div className="flex-shrink-0 p-4 border-b border-border bg-card">
+                  <h2 className="text-lg font-semibold mb-2">
+                    Summary of {summaryData.source?.title || 'PDF Document'}
+                  </h2>
+                  <div className="text-sm text-muted-foreground">
+                    {summaryData.source?.author && `By ${summaryData.source.author} • `}
+                    {summaryData.metadata?.wordCount} words • {summaryData.metadata?.processingTime}s processing time
+                  </div>
+                </div>
+                
+                {/* Scrollable Content Area */}
+                <div className="flex-1 overflow-y-auto p-4" style={{ maxHeight: 'calc(100vh - 300px)' }}>
+                  <div className="prose prose-sm max-w-none">
+                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                      {summaryData.content}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Action Bar */}

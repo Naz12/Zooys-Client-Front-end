@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { summarizeApi, type UploadResponse } from "@/lib/api-client";
+import { fileApi } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications";
 import { 
@@ -94,24 +94,21 @@ export default function FileUpload({
 
     onFilesChange([...(files || []), ...newFiles]);
 
-    // Upload files to API
+    // Upload files to API (standard files service)
     for (let i = 0; i < newFiles.length; i++) {
       const file = newFiles[i];
       if (file.status === "uploading" && file.file) {
         try {
-          const response: UploadResponse = await summarizeApi.uploadFile(
-            file.file, 
-            file.type.startsWith('image/') ? 'image' : 'pdf'
-          );
+          const response = await fileApi.upload(file.file, { tool_type: 'summarize' });
           
-          uploadIds.push(response.upload_id);
+          uploadIds.push(response.file_upload.id);
           
           // Update file status
           onFilesChange(prev => 
             (prev || []).map(f => f.id === file.id ? { 
               ...f, 
               status: "completed" as const,
-              uploadId: response.upload_id
+              uploadId: response.file_upload.id
             } : f)
           );
           
