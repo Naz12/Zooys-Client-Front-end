@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Result Parser Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-case { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .result { margin-top: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 3px; }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+    <h1>Result Parser Test</h1>
+    <p>Testing the universal result parser with different response structures.</p>
+
+    <div id="test-results"></div>
+
+    <script>
+        // Simplified version of the result parser for testing
+        function parseSummarizationResult(result) {
+            console.log('🔍 Parsing result structure:', result);
+            
+            if (!result) {
+                console.log('❌ No result provided');
+                return null;
+            }
+
+            // Structure 1: Direct structure (your text summarization case)
+            if (result.summary && result.key_points) {
+                console.log('✅ Found direct structure (text summarization)');
+                return {
+                    summary: result.summary,
+                    key_points: result.key_points,
+                    confidence_score: result.confidence_score,
+                    model_used: result.model_used,
+                    raw_result: result
+                };
+            }
+
+            // Structure 2: Nested in result.data
+            if (result.data) {
+                console.log('✅ Found result.data structure');
+                const data = result.data;
+                
+                if (data.summary && data.key_points) {
+                    console.log('✅ Found text summarization in data');
+                    return {
+                        summary: data.summary,
+                        key_points: data.key_points,
+                        confidence_score: data.confidence_score,
+                        model_used: data.model_used,
+                        metadata: data.metadata,
+                        source_info: data.source_info,
+                        raw_result: result
+                    };
+                }
+                
+                if (data.bundle || data.ai_result) {
+                    console.log('✅ Found YouTube summarization in data');
+                    return {
+                        summary: data.summary || data.bundle?.summary || data.ai_result?.summary || 'YouTube summary available',
+                        key_points: data.key_points || [],
+                        confidence_score: data.bundle?.meta?.ai_confidence_score || data.metadata?.[0]?.confidence || 0.8,
+                        model_used: data.bundle?.meta?.ai_model_used || data.metadata?.[0]?.model_used || 'unknown',
+                        metadata: data.metadata,
+                        ai_result: data.ai_result,
+                        bundle: data.bundle,
+                        raw_result: result
+                    };
+                }
+                
+                if (data.summary) {
+                    console.log('✅ Found simple summary in data');
+                    return {
+                        summary: data.summary,
+                        key_points: data.key_points || [],
+                        confidence_score: data.confidence_score || 0.8,
+                        model_used: data.model_used || 'unknown',
+                        metadata: data.metadata,
+                        source_info: data.source_info,
+                        raw_result: result
+                    };
+                }
+            }
+
+            // Structure 3: Nested in result.result
+            if (result.result) {
+                console.log('✅ Found result.result structure');
+                const resultData = result.result;
+                
+                if (resultData.summary) {
+                    console.log('✅ Found summary in result.result');
+                    return {
+                        summary: resultData.summary,
+                        key_points: resultData.key_points || [],
+                        confidence_score: resultData.confidence_score || 0.8,
+                        model_used: resultData.model_used || 'unknown',
+                        metadata: resultData.metadata,
+                        source_info: resultData.source_info,
+                        raw_result: result
+                    };
+                }
+            }
+
+            // Structure 4: Legacy format
+            if (result.summary && !result.key_points) {
+                console.log('✅ Found legacy summary format');
+                return {
+                    summary: result.summary,
+                    key_points: [],
+                    confidence_score: result.confidence_score || 0.8,
+                    model_used: result.model_used || 'unknown',
+                    metadata: result.metadata,
+                    source_info: result.source_info,
+                    raw_result: result
+                };
+            }
+
+            // Structure 5: Error handling
+            if (result.error) {
+                console.log('❌ Found error in result:', result.error);
+                return {
+                    summary: `Error: ${result.error}`,
+                    key_points: [],
+                    confidence_score: 0,
+                    model_used: 'error',
+                    raw_result: result
+                };
+            }
+
+            console.log('❌ No summary found in any structure');
+            return null;
+        }
+
+        // Test cases
+        const testCases = [
+            {
+                name: "Direct Structure (Your Case)",
+                input: {
+                    "summary": "Ethiopia covers approximately ten times more land than Eritrea.",
+                    "key_points": [
+                        "Size comparison between Ethiopia and Eritrea",
+                        "Land area of Ethiopia is about 1.1 million square kilometers"
+                    ],
+                    "confidence_score": 0.8,
+                    "model_used": "ollama:phi3:mini"
+                },
+                expected: "Direct structure should be parsed correctly"
+            },
+            {
+                name: "Nested in result.data",
+                input: {
+                    "data": {
+                        "summary": "This is a nested summary",
+                        "key_points": ["Point 1", "Point 2"],
+                        "confidence_score": 0.9,
+                        "model_used": "gpt-4"
+                    }
+                },
+                expected: "Nested structure should be parsed correctly"
+            },
+            {
+                name: "YouTube Structure",
+                input: {
+                    "data": {
+                        "summary": "YouTube video summary",
+                        "bundle": {
+                            "video_id": "abc123",
+                            "summary": "Bundle summary",
+                            "meta": {
+                                "ai_confidence_score": 0.95,
+                                "ai_model_used": "gpt-4"
+                            }
+                        }
+                        }
+                    }
+                },
+                expected: "YouTube structure should be parsed correctly"
+            },
+            {
+                name: "Error Structure",
+                input: {
+                    "error": "Something went wrong"
+                },
+                expected: "Error should be handled gracefully"
+            },
+            {
+                name: "Empty/Null",
+                input: null,
+                expected: "Null input should return null"
+            }
+        ];
+
+        // Run tests
+        function runTests() {
+            const resultsDiv = document.getElementById('test-results');
+            
+            testCases.forEach((testCase, index) => {
+                const result = parseSummarizationResult(testCase.input);
+                const success = result !== null;
+                
+                const testDiv = document.createElement('div');
+                testDiv.className = `test-case ${success ? 'success' : 'error'}`;
+                
+                testDiv.innerHTML = `
+                    <h3>Test ${index + 1}: ${testCase.name}</h3>
+                    <p><strong>Expected:</strong> ${testCase.expected}</p>
+                    <p><strong>Result:</strong> ${success ? '✅ PASSED' : '❌ FAILED'}</p>
+                    <div class="result">
+                        <strong>Input:</strong>
+                        <pre>${JSON.stringify(testCase.input, null, 2)}</pre>
+                        <strong>Parsed Output:</strong>
+                        <pre>${JSON.stringify(result, null, 2)}</pre>
+                    </div>
+                `;
+                
+                resultsDiv.appendChild(testDiv);
+            });
+        }
+
+        // Run tests when page loads
+        window.onload = runTests;
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Loop Fix Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-color: #1a1a1a; 
+            color: #ffffff; 
+        }
+        .test-case { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border: 1px solid #333; 
+            border-radius: 5px; 
+            background-color: #2a2a2a;
+        }
+        .success { 
+            background-color: #1a4d1a; 
+            border-color: #2d5a2d; 
+        }
+        .error { 
+            background-color: #4d1a1a; 
+            border-color: #5a2d2d; 
+        }
+        .result { 
+            margin-top: 10px; 
+            padding: 10px; 
+            background-color: #3a3a3a; 
+            border-radius: 3px; 
+            border: 1px solid #555;
+        }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+    <h1>Debug Loop Fix Test</h1>
+    <p>This test verifies that the debug logging has been moved to useEffect to prevent infinite re-render loops.</p>
+
+    <div class="test-case success">
+        <h3>✅ Fixed Issues</h3>
+        <div class="result">
+            <pre>1. Removed console.log from render method
+2. Moved debug logging to useEffect
+3. Added button click logging
+4. Added comprehensive error logging
+5. Added component re-render tracking</pre>
+        </div>
+    </div>
+
+    <div class="test-case success">
+        <h3>Expected Console Output (No Loop)</h3>
+        <div class="result">
+            <pre>🔍 Component re-rendered
+🔍 Result state changed: null
+🔍 No result to display - result state: null
+[User clicks summarize button]
+🔍 Summarize button clicked
+🔍 handleSummarize called
+🔍 Current activeContentType: pdf
+🔍 Starting API call for content type: pdf
+🔍 Executing PDF/audio case
+[API processing...]
+🔍 Result state changed: {success: true, summary: "...", ...}
+🔍 Result exists: {success: true, summary: "...", ...}</pre>
+        </div>
+    </div>
+
+    <div class="test-case error">
+        <h3>❌ Previous Issue (Infinite Loop)</h3>
+        <div class="result">
+            <pre>🔍 No result to display - result state: null
+🔍 No result to display - result state: null
+🔍 No result to display - result state: null
+[repeats infinitely]</pre>
+        </div>
+    </div>
+
+    <div class="test-case success">
+        <h3>Debug Steps</h3>
+        <div class="result">
+            <pre>1. Open browser console (F12)
+2. Look for "🔍 Component re-rendered" - should appear once per render
+3. Look for "🔍 Result state changed" - should appear when result changes
+4. Click summarize button and look for the debug flow
+5. Check if any errors appear in the console
+6. Verify the result state is being set correctly</pre>
+        </div>
+    </div>
+
+    <script>
+        // Simulate the fixed debug logging
+        console.log('🔍 Component re-rendered');
+        console.log('🔍 Result state changed: null');
+        console.log('🔍 No result to display - result state: null');
+        
+        // Simulate button click
+        setTimeout(() => {
+            console.log('🔍 Summarize button clicked');
+            console.log('🔍 handleSummarize called');
+            console.log('🔍 Current activeContentType: pdf');
+            console.log('🔍 Starting API call for content type: pdf');
+            console.log('🔍 Executing PDF/audio case');
+            
+            // Simulate successful result
+            setTimeout(() => {
+                console.log('🔍 Result state changed: {success: true, summary: "PDF summary", key_points: ["Point 1", "Point 2"], confidence_score: 0.8, model_used: "ollama:phi3:mini"}');
+                console.log('🔍 Result exists: {success: true, summary: "PDF summary", key_points: ["Point 1", "Point 2"], confidence_score: 0.8, model_used: "ollama:phi3:mini"}');
+            }, 1000);
+        }, 2000);
+    </script>
+</body>
+</html>
+

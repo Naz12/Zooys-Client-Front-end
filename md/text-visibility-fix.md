@@ -115,3 +115,5 @@ The text visibility fix ensures that:
 The summary results should now be clearly visible with proper text contrast! 🎯
 
 
+
+

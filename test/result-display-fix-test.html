@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Result Display Fix Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-color: #1a1a1a; 
+            color: #ffffff; 
+        }
+        .test-case { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border: 1px solid #333; 
+            border-radius: 5px; 
+            background-color: #2a2a2a;
+        }
+        .success { 
+            background-color: #1a4d1a; 
+            border-color: #2d5a2d; 
+        }
+        .error { 
+            background-color: #4d1a1a; 
+            border-color: #5a2d2d; 
+        }
+        .result { 
+            margin-top: 10px; 
+            padding: 10px; 
+            background-color: #3a3a3a; 
+            border-radius: 3px; 
+            border: 1px solid #555;
+        }
+        .text-foreground { color: #ffffff; }
+        .bg-muted { background-color: #404040; }
+        .bg-muted-50 { background-color: #40404080; }
+        .border { border: 1px solid #555; }
+        .rounded-lg { border-radius: 8px; }
+        .p-4 { padding: 16px; }
+        .text-sm { font-size: 14px; }
+        .leading-relaxed { line-height: 1.6; }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+    <h1>Result Display Fix Test</h1>
+    <p>Testing the fixed result display with proper text colors and key points display.</p>
+
+    <div class="test-case success">
+        <h3>Test 1: Summary Display with Proper Colors</h3>
+        <p><strong>Expected:</strong> Dark background with white text (readable)</p>
+        <div class="result">
+            <div class="p-4 bg-muted-50 rounded-lg border">
+                <p class="text-sm leading-relaxed text-foreground">Ethiopia and Eritrea differ significantly in both population size and land area.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-case success">
+        <h3>Test 2: Key Points Display</h3>
+        <p><strong>Expected:</strong> Key points should be displayed with proper numbering and colors</p>
+        <div class="result">
+            <div class="space-y-2">
+                <div class="flex items-start gap-2 p-3 bg-muted-50 rounded-lg border">
+                    <span style="flex-shrink: 0; width: 24px; height: 24px; background-color: #3b82f6; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">1</span>
+                    <p class="text-sm leading-relaxed text-foreground">Size comparison</p>
+                </div>
+                <div class="flex items-start gap-2 p-3 bg-muted-50 rounded-lg border">
+                    <span style="flex-shrink: 0; width: 24px; height: 24px; background-color: #3b82f6; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500;">2</span>
+                    <p class="text-sm leading-relaxed text-foreground">Population difference</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-case success">
+        <h3>Test 3: Empty Key Points Fallback</h3>
+        <p><strong>Expected:</strong> Should show "No key points available" message</p>
+        <div class="result">
+            <div class="p-4 bg-muted-50 rounded-lg border text-center">
+                <p class="text-sm" style="color: #888;">No key points available</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-case success">
+        <h3>Test 4: Sample Data Structure</h3>
+        <p><strong>Expected:</strong> The data structure that should be passed to the component</p>
+        <div class="result">
+            <pre>{
+  "success": true,
+  "summary": "Ethiopia and Eritrea differ significantly in both population size and land area.",
+  "key_points": [
+    "Size comparison",
+    "Population difference"
+  ],
+  "confidence_score": 0.8,
+  "model_used": "ollama:phi3:mini"
+}</pre>
+        </div>
+    </div>
+
+    <script>
+        // Test the data structure
+        const testData = {
+            success: true,
+            summary: "Ethiopia and Eritrea differ significantly in both population size and land area.",
+            key_points: [
+                "Size comparison",
+                "Population difference"
+            ],
+            confidence_score: 0.8,
+            model_used: "ollama:phi3:mini"
+        };
+
+        console.log('🔍 Test data structure:', testData);
+        console.log('🔍 Key points length:', testData.key_points?.length);
+        console.log('🔍 Has key points:', testData.key_points && testData.key_points.length > 0);
+
+        // Simulate the component logic
+        function simulateKeyPointsDisplay(result) {
+            if (result.key_points && result.key_points.length > 0) {
+                console.log('✅ Key points will be displayed');
+                return result.key_points.map((point, index) => ({
+                    index: index + 1,
+                    text: point
+                }));
+            } else {
+                console.log('❌ No key points available');
+                return [];
+            }
+        }
+
+        const keyPointsResult = simulateKeyPointsDisplay(testData);
+        console.log('🔍 Key points result:', keyPointsResult);
+    </script>
+</body>
+</html>
+

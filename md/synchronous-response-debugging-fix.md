@@ -194,3 +194,5 @@ The fix ensures that:
 The PDF summarizer now handles the synchronous response correctly and provides meaningful content to the user! 🚀
 
 
+
+

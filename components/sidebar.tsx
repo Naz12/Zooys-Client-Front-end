@@ -15,6 +15,7 @@ import {
   Presentation,
   ChevronLeft,
   ChevronRight,
+  FileUp,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -50,6 +51,7 @@ function Sidebar() {
     { label: "AI Flashcards", href: "/flashcards", icon: <BookOpen size={18} /> },
     { label: "AI Diagrams", href: "/diagrams", icon: <Network size={18} /> },
     { label: "AI Presentation", href: "/presentation", icon: <Presentation size={18} /> },
+    { label: "Convert File", href: "/convert-file", icon: <FileUp size={18} /> },
   ];
 
   return (

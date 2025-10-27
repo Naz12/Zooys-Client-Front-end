@@ -177,3 +177,5 @@ The fix ensures that:
 The PDF summarizer now correctly handles the async workflow and displays real AI-generated summaries! 🚀
 
 
+
+

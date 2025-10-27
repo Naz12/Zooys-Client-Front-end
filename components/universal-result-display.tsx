@@ -80,7 +80,12 @@ export default function UniversalResultDisplay({
   };
 
   // Render text summary result
-  const renderTextResult = (result: TextJobResultData) => (
+  const renderTextResult = (result: TextJobResultData) => {
+    console.log('🔍 Rendering text result:', result);
+    console.log('🔍 Key points:', result.key_points);
+    console.log('🔍 Key points length:', result.key_points?.length);
+    
+    return (
     <Card className="w-full">
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -109,8 +114,8 @@ export default function UniversalResultDisplay({
           
           <TabsContent value="summary" className="mt-4">
             <div className="space-y-4">
-              <div className="p-4 bg-muted rounded-lg">
-                <p className="text-sm leading-relaxed text-gray-900 dark:text-gray-100">{result.summary}</p>
+              <div className="p-4 bg-muted/50 rounded-lg border">
+                <p className="text-sm leading-relaxed text-foreground">{result.summary}</p>
               </div>
               {showActions && (
                 <div className="flex gap-2">
@@ -137,22 +142,28 @@ export default function UniversalResultDisplay({
           
           <TabsContent value="keypoints" className="mt-4">
             <div className="space-y-4">
-              <div className="space-y-2">
-                {result.key_points.map((point, index) => (
-                  <div key={index} className="flex items-start gap-2 p-3 bg-muted rounded-lg">
-                    <span className="flex-shrink-0 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-sm font-medium">
-                      {index + 1}
-                    </span>
-                    <p className="text-sm leading-relaxed text-gray-900 dark:text-gray-100">{point}</p>
-                  </div>
-                ))}
-              </div>
+              {result.key_points && result.key_points.length > 0 ? (
+                <div className="space-y-2">
+                  {result.key_points.map((point, index) => (
+                    <div key={index} className="flex items-start gap-2 p-3 bg-muted/50 rounded-lg border">
+                      <span className="flex-shrink-0 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-sm font-medium">
+                        {index + 1}
+                      </span>
+                      <p className="text-sm leading-relaxed text-foreground">{point}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 bg-muted/50 rounded-lg border text-center">
+                  <p className="text-sm text-muted-foreground">No key points available</p>
+                </div>
+              )}
               {showActions && (
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleCopy(result.key_points.join('\n'))}
+                    onClick={() => handleCopy(result.key_points?.join('\n') || 'No key points available')}
                   >
                     {copied ? <CheckCircle className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                     {copied ? 'Copied!' : 'Copy Key Points'}
@@ -164,7 +175,8 @@ export default function UniversalResultDisplay({
         </Tabs>
       </CardContent>
     </Card>
-  );
+    );
+  };
 
   // Render YouTube summary result
   const renderYouTubeResult = (result: YouTubeJobResultData) => (

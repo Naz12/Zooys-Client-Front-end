@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Summarization Debug Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-color: #1a1a1a; 
+            color: #ffffff; 
+        }
+        .test-case { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border: 1px solid #333; 
+            border-radius: 5px; 
+            background-color: #2a2a2a;
+        }
+        .success { 
+            background-color: #1a4d1a; 
+            border-color: #2d5a2d; 
+        }
+        .error { 
+            background-color: #4d1a1a; 
+            border-color: #5a2d2d; 
+        }
+        .result { 
+            margin-top: 10px; 
+            padding: 10px; 
+            background-color: #3a3a3a; 
+            border-radius: 3px; 
+            border: 1px solid #555;
+        }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+    <h1>PDF Summarization Debug Test</h1>
+    <p>This test simulates the debug logging that should appear in the console when PDF summarization is triggered.</p>
+
+    <div class="test-case success">
+        <h3>Expected Console Output for PDF Summarization</h3>
+        <div class="result">
+            <pre>🔍 handleSummarize called
+🔍 Current activeContentType: pdf
+🔍 Current result state: null
+🔍 Starting API call for content type: pdf
+🔍 Executing PDF/audio case
+🔍 Uploaded files: [FileUploadItem]
+🔍 Starting PDF file job
+🔍 File job started, response: {job_id: "...", poll_url: "...", result_url: "..."}
+🔍 Async response received: {job_id: "...", poll_url: "...", result_url: "..."}
+🔍 Poll URL: http://localhost:8000/api/status?job_id=...
+🔍 Result URL: http://localhost:8000/api/result?job_id=...
+🔍 Job ID: ...
+🔍 Using universal result parser...
+🔍 Final parsed result: {summary: "...", key_points: [...], ...}
+🔍 Setting result for display: {success: true, summary: "...", key_points: [...], ...}
+🔍 Result set, checking state in next render...
+🔍 Result exists: {success: true, summary: "...", key_points: [...], ...}</pre>
+        </div>
+    </div>
+
+    <div class="test-case error">
+        <h3>Common Issues to Check</h3>
+        <div class="result">
+            <pre>1. If you see "🔍 No uploaded files found" - PDF file not uploaded properly
+2. If you see "🔍 No result to display" repeatedly - Result not being set
+3. If you see "🔍 Error occurred" - API call failed
+4. If you see "🔍 Finally block - result state: null" - Result was cleared</pre>
+        </div>
+    </div>
+
+    <div class="test-case success">
+        <h3>Debug Steps</h3>
+        <div class="result">
+            <pre>1. Open browser console (F12)
+2. Try to summarize a PDF
+3. Look for the debug messages above
+4. Check if any step is missing or shows an error
+5. Verify the result state is being set correctly</pre>
+        </div>
+    </div>
+
+    <script>
+        // Simulate the debug logging
+        console.log('🔍 handleSummarize called');
+        console.log('🔍 Current activeContentType: pdf');
+        console.log('🔍 Current result state: null');
+        console.log('🔍 Starting API call for content type: pdf');
+        console.log('🔍 Executing PDF/audio case');
+        console.log('🔍 Uploaded files: [FileUploadItem]');
+        console.log('🔍 Starting PDF file job');
+        console.log('🔍 File job started, response: {job_id: "test-123", poll_url: "http://localhost:8000/api/status?job_id=test-123", result_url: "http://localhost:8000/api/result?job_id=test-123"}');
+        console.log('🔍 Async response received: {job_id: "test-123", poll_url: "http://localhost:8000/api/status?job_id=test-123", result_url: "http://localhost:8000/api/result?job_id=test-123"}');
+        console.log('🔍 Poll URL: http://localhost:8000/api/status?job_id=test-123');
+        console.log('🔍 Result URL: http://localhost:8000/api/result?job_id=test-123');
+        console.log('🔍 Job ID: test-123');
+        console.log('🔍 Using universal result parser...');
+        console.log('🔍 Final parsed result: {summary: "PDF summary content", key_points: ["Point 1", "Point 2"], confidence_score: 0.8, model_used: "ollama:phi3:mini"}');
+        console.log('🔍 Setting result for display: {success: true, summary: "PDF summary content", key_points: ["Point 1", "Point 2"], confidence_score: 0.8, model_used: "ollama:phi3:mini"}');
+        console.log('🔍 Result set, checking state in next render...');
+        console.log('🔍 Result exists: {success: true, summary: "PDF summary content", key_points: ["Point 1", "Point 2"], confidence_score: 0.8, model_used: "ollama:phi3:mini"}');
+    </script>
+</body>
+</html>
+

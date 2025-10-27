@@ -269,3 +269,5 @@ The specialized endpoints implementation provides:
 The frontend now uses the most appropriate endpoint for each content type, making the integration cleaner and more efficient! 🚀
 
 
+
+

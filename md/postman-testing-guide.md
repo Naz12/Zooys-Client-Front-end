@@ -291,3 +291,5 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
 This guide should help you test the specialized text endpoint thoroughly with Postman! 🎯
 
 
+
+

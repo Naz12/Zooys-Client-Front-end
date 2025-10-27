@@ -501,8 +501,8 @@ export const API_ENDPOINTS = {
   // Unified Summarization
   SUMMARIZE: '/summarize',
   SUMMARIZE_ASYNC: '/summarize/async',
-  SUMMARIZE_STATUS: '/summarize/status',
-  SUMMARIZE_RESULT: '/summarize/result',
+  SUMMARIZE_STATUS: '/status',
+  SUMMARIZE_RESULT: '/result',
   UPLOAD_FILE: '/summarize/upload',
   UPLOAD_STATUS: '/summarize/upload',
   
@@ -604,31 +604,67 @@ export const asyncYouTubeApi = {
   
   // Check job status
   getJobStatus: (jobId: string) =>
-    apiClient.get<JobStatusResponse>(`${API_ENDPOINTS.SUMMARIZE_STATUS}/${jobId}`),
+    apiClient.get<JobStatusResponse>(`${API_ENDPOINTS.SUMMARIZE_STATUS}?job_id=${jobId}`),
   
   // Get job result
   getJobResult: (jobId: string) =>
-    apiClient.get<JobResultResponse>(`${API_ENDPOINTS.SUMMARIZE_RESULT}/${jobId}`),
+    apiClient.get<JobResultResponse>(`${API_ENDPOINTS.SUMMARIZE_RESULT}?job_id=${jobId}`),
   
   // Helper: use absolute poll/result URLs from backend response
   getJobStatusByUrl: (pollUrl: string) => {
+    console.log('asyncYouTubeApi.getJobStatusByUrl called with:', pollUrl);
     try {
       const url = new URL(pollUrl);
-      const endpoint = url.pathname.replace(/^\/api/, '');
+      let endpoint = url.pathname.replace(/^\/api/, '');
+      
+      // Handle both old format (/status/{id}) and new format (/status?job_id={id})
+      if (url.search) {
+        // New format: has query parameters
+        endpoint += url.search;
+      } else {
+        // Old format: extract job_id from path and convert to query parameter
+        const pathParts = endpoint.split('/');
+        if (pathParts.length >= 3 && pathParts[1] === 'status') {
+          const jobId = pathParts[2];
+          endpoint = '/status?job_id=' + jobId;
+        }
+      }
+      
+      console.log('Parsed endpoint:', endpoint);
       return apiClient.get<JobStatusResponse>(endpoint);
-    } catch {
+    } catch (error) {
+      console.log('URL parsing failed, using fallback:', error);
       const endpoint = pollUrl.replace(/^http(s)?:\/\/[^/]+/, '').replace(/^\/api/, '');
+      console.log('Fallback endpoint:', endpoint);
       return apiClient.get<JobStatusResponse>(endpoint);
     }
   },
 
   getJobResultByUrl: (resultUrl: string) => {
+    console.log('asyncYouTubeApi.getJobResultByUrl called with:', resultUrl);
     try {
       const url = new URL(resultUrl);
-      const endpoint = url.pathname.replace(/^\/api/, '');
+      let endpoint = url.pathname.replace(/^\/api/, '');
+      
+      // Handle both old format (/result/{id}) and new format (/result?job_id={id})
+      if (url.search) {
+        // New format: has query parameters
+        endpoint += url.search;
+      } else {
+        // Old format: extract job_id from path and convert to query parameter
+        const pathParts = endpoint.split('/');
+        if (pathParts.length >= 3 && pathParts[1] === 'result') {
+          const jobId = pathParts[2];
+          endpoint = '/result?job_id=' + jobId;
+        }
+      }
+      
+      console.log('Parsed result endpoint:', endpoint);
       return apiClient.get<JobResultResponse>(endpoint);
-    } catch {
+    } catch (error) {
+      console.log('URL parsing failed, using fallback:', error);
       const endpoint = resultUrl.replace(/^http(s)?:\/\/[^/]+/, '').replace(/^\/api/, '');
+      console.log('Fallback result endpoint:', endpoint);
       return apiClient.get<JobResultResponse>(endpoint);
     }
   },
@@ -674,31 +710,67 @@ export const specializedSummarizeApi = {
   
   // Shared status and result methods
   getJobStatus: (jobId: string) =>
-    apiClient.get<JobStatusResponse>(`${API_ENDPOINTS.SUMMARIZE_STATUS}/${jobId}`),
+    apiClient.get<JobStatusResponse>(`${API_ENDPOINTS.SUMMARIZE_STATUS}?job_id=${jobId}`),
   
   getJobResult: (jobId: string) =>
-    apiClient.get<JobResultResponse>(`${API_ENDPOINTS.SUMMARIZE_RESULT}/${jobId}`),
+    apiClient.get<JobResultResponse>(`${API_ENDPOINTS.SUMMARIZE_RESULT}?job_id=${jobId}`),
   
   // Helper: use absolute poll/result URLs from backend response
   getJobStatusByUrl: (pollUrl: string) => {
+    console.log('specializedSummarizeApi.getJobStatusByUrl called with:', pollUrl);
     try {
       const url = new URL(pollUrl);
-      const endpoint = url.pathname.replace(/^\/api/, '');
+      let endpoint = url.pathname.replace(/^\/api/, '');
+      
+      // Handle both old format (/status/{id}) and new format (/status?job_id={id})
+      if (url.search) {
+        // New format: has query parameters
+        endpoint += url.search;
+      } else {
+        // Old format: extract job_id from path and convert to query parameter
+        const pathParts = endpoint.split('/');
+        if (pathParts.length >= 3 && pathParts[1] === 'status') {
+          const jobId = pathParts[2];
+          endpoint = '/status?job_id=' + jobId;
+        }
+      }
+      
+      console.log('Parsed endpoint:', endpoint);
       return apiClient.get<JobStatusResponse>(endpoint);
-    } catch {
+    } catch (error) {
+      console.log('URL parsing failed, using fallback:', error);
       const endpoint = pollUrl.replace(/^http(s)?:\/\/[^/]+/, '').replace(/^\/api/, '');
+      console.log('Fallback endpoint:', endpoint);
       return apiClient.get<JobStatusResponse>(endpoint);
     }
   },
   
   // Helper: use absolute result URL from backend response
   getJobResultByUrl: (resultUrl: string) => {
+    console.log('specializedSummarizeApi.getJobResultByUrl called with:', resultUrl);
     try {
       const url = new URL(resultUrl);
-      const endpoint = url.pathname.replace(/^\/api/, '');
+      let endpoint = url.pathname.replace(/^\/api/, '');
+      
+      // Handle both old format (/result/{id}) and new format (/result?job_id={id})
+      if (url.search) {
+        // New format: has query parameters
+        endpoint += url.search;
+      } else {
+        // Old format: extract job_id from path and convert to query parameter
+        const pathParts = endpoint.split('/');
+        if (pathParts.length >= 3 && pathParts[1] === 'result') {
+          const jobId = pathParts[2];
+          endpoint = '/result?job_id=' + jobId;
+        }
+      }
+      
+      console.log('Parsed result endpoint:', endpoint);
       return apiClient.get<JobResultResponse>(endpoint);
-    } catch {
+    } catch (error) {
+      console.log('URL parsing failed, using fallback:', error);
       const endpoint = resultUrl.replace(/^http(s)?:\/\/[^/]+/, '').replace(/^\/api/, '');
+      console.log('Fallback result endpoint:', endpoint);
       return apiClient.get<JobResultResponse>(endpoint);
     }
   }
@@ -942,32 +1014,67 @@ export const summarizeApi = {
     apiClient.post<AsyncSummarizeResponse>(API_ENDPOINTS.SUMMARIZE_ASYNC, request),
   
   getJobStatus: (jobId: string) =>
-    apiClient.get<JobStatusResponse>(`${API_ENDPOINTS.SUMMARIZE_STATUS}/${jobId}`),
+    apiClient.get<JobStatusResponse>(`${API_ENDPOINTS.SUMMARIZE_STATUS}?job_id=${jobId}`),
   
   getJobResult: (jobId: string) =>
-    apiClient.get<JobResultResponse>(`${API_ENDPOINTS.SUMMARIZE_RESULT}/${jobId}`),
+    apiClient.get<JobResultResponse>(`${API_ENDPOINTS.SUMMARIZE_RESULT}?job_id=${jobId}`),
 
   // Helpers: use absolute poll/result URLs from backend response
   getJobStatusByUrl: (pollUrl: string) => {
+    console.log('summarizeApi.getJobStatusByUrl called with:', pollUrl);
     try {
       const url = new URL(pollUrl);
-      // url.pathname is like '/api/summarize/status/<id>' → strip leading '/api'
-      const endpoint = url.pathname.replace(/^\/api/, '');
+      let endpoint = url.pathname.replace(/^\/api/, '');
+      
+      // Handle both old format (/status/{id}) and new format (/status?job_id={id})
+      if (url.search) {
+        // New format: has query parameters
+        endpoint += url.search;
+      } else {
+        // Old format: extract job_id from path and convert to query parameter
+        const pathParts = endpoint.split('/');
+        if (pathParts.length >= 3 && pathParts[1] === 'status') {
+          const jobId = pathParts[2];
+          endpoint = '/status?job_id=' + jobId;
+        }
+      }
+      
+      console.log('Parsed endpoint:', endpoint);
       return apiClient.get<JobStatusResponse>(endpoint);
-    } catch {
+    } catch (error) {
+      console.log('URL parsing failed, using fallback:', error);
       // Fallback: assume caller passed a path
       const endpoint = pollUrl.replace(/^http(s)?:\/\/[^/]+/, '').replace(/^\/api/, '');
+      console.log('Fallback endpoint:', endpoint);
       return apiClient.get<JobStatusResponse>(endpoint);
     }
   },
 
   getJobResultByUrl: (resultUrl: string) => {
+    console.log('summarizeApi.getJobResultByUrl called with:', resultUrl);
     try {
       const url = new URL(resultUrl);
-      const endpoint = url.pathname.replace(/^\/api/, '');
+      let endpoint = url.pathname.replace(/^\/api/, '');
+      
+      // Handle both old format (/result/{id}) and new format (/result?job_id={id})
+      if (url.search) {
+        // New format: has query parameters
+        endpoint += url.search;
+      } else {
+        // Old format: extract job_id from path and convert to query parameter
+        const pathParts = endpoint.split('/');
+        if (pathParts.length >= 3 && pathParts[1] === 'result') {
+          const jobId = pathParts[2];
+          endpoint = '/result?job_id=' + jobId;
+        }
+      }
+      
+      console.log('Parsed result endpoint:', endpoint);
       return apiClient.get<JobResultResponse>(endpoint);
-    } catch {
+    } catch (error) {
+      console.log('URL parsing failed, using fallback:', error);
       const endpoint = resultUrl.replace(/^http(s)?:\/\/[^/]+/, '').replace(/^\/api/, '');
+      console.log('Fallback result endpoint:', endpoint);
       return apiClient.get<JobResultResponse>(endpoint);
     }
   },
