@@ -1,7 +1,7 @@
 ---
 alwaysApply: true
 ---
-
+dont override existing logic with out asking me first
 
 use mock data only when i tell you to use.
 

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { aiToolsApi } from "@/lib/api-client";
+import { diagramApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications";
 import { Network, ArrowLeft, Settings, Download, Copy, RotateCcw } from "lucide-react";

@@ -10,6 +10,10 @@ import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, Clock, TrendingUp } from 'lucide-react';
+import UpgradeDialog from './upgrade-dialog';
+import DowngradeDialog from './downgrade-dialog';
+import CheckoutFlow from './checkout-flow';
+import UnifiedCheckoutDialog, { CheckoutType } from './unified-checkout-dialog';
 
 export default function SubscriptionPlans() {
   const {
@@ -22,30 +26,49 @@ export default function SubscriptionPlans() {
   } = useSubscription();
 
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
-  const [billingInterval, setBillingInterval] = useState<'monthly' | 'yearly'>('monthly');
+  const [showUnifiedCheckout, setShowUnifiedCheckout] = useState(false);
+  const [checkoutType, setCheckoutType] = useState<CheckoutType>('new');
+  const [targetPlan, setTargetPlan] = useState<SubscriptionPlan | null>(null);
 
   useEffect(() => {
     loadPlans();
   }, []);
 
   const handlePlanSelect = async (plan: SubscriptionPlan) => {
-    setSelectedPlan(plan);
-    try {
-      await createSubscription(plan.id);
-      notifications.success(
-        'Subscription Created',
-        `Successfully subscribed to ${plan.name} plan!`
-      );
-    } catch (error) {
-      notifications.error(
-        'Subscription Failed',
-        'Failed to create subscription. Please try again.'
-      );
-    }
+    setTargetPlan(plan);
+    setCheckoutType('new');
+    setShowUnifiedCheckout(true);
+  };
+
+  const handleUpgrade = (plan: SubscriptionPlan) => {
+    setTargetPlan(plan);
+    setCheckoutType('upgrade');
+    setShowUnifiedCheckout(true);
+  };
+
+  const handleDowngrade = (plan: SubscriptionPlan) => {
+    setTargetPlan(plan);
+    setCheckoutType('downgrade');
+    setShowUnifiedCheckout(true);
+  };
+
+  const handleCheckoutSuccess = () => {
+    setShowUnifiedCheckout(false);
+    setTargetPlan(null);
+    loadPlans();
+    notifications.success(
+      'Subscription Updated',
+      'Your subscription has been updated successfully!'
+    );
+  };
+
+  const handleCheckoutClose = () => {
+    setShowUnifiedCheckout(false);
+    setTargetPlan(null);
   };
 
   const filteredPlans = plans.filter(plan => 
-    plan.interval === billingInterval && plan.is_active !== false
+    plan.is_active !== false
   );
 
   const getCurrentPlan = () => {
@@ -115,31 +138,28 @@ export default function SubscriptionPlans() {
         </Card>
       )}
 
-      {/* Billing Toggle */}
-      <div className="flex justify-center">
-        <Tabs value={billingInterval} onValueChange={(value) => setBillingInterval(value as 'monthly' | 'yearly')}>
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="monthly">Monthly</TabsTrigger>
-            <TabsTrigger value="yearly">
-              Yearly
-              <Badge variant="secondary" className="ml-2">Save 20%</Badge>
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
+      {/* All plans are monthly billing */}
 
       {/* Plans Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-        {filteredPlans.map((plan, index) => (
-          <PlanCard
-            key={plan.id}
-            plan={plan}
-            isCurrentPlan={currentPlan?.id === plan.id}
-            isPopular={index === 1} // Make middle plan popular
-            onSelect={handlePlanSelect}
-            loading={loading}
-          />
-        ))}
+        {filteredPlans.map((plan, index) => {
+          const isCurrentPlan = currentPlan?.id === plan.id;
+          const isHigherPlan = currentPlan && plan.price > currentPlan.price;
+          const isLowerPlan = currentPlan && plan.price < currentPlan.price;
+          
+          return (
+            <PlanCard
+              key={plan.id}
+              plan={plan}
+              isCurrentPlan={isCurrentPlan}
+              isPopular={index === 1} // Make middle plan popular
+              onSelect={!currentPlan ? handlePlanSelect : undefined}
+              onUpgrade={isHigherPlan ? handleUpgrade : undefined}
+              onDowngrade={isLowerPlan ? handleDowngrade : undefined}
+              loading={loading}
+            />
+          );
+        })}
       </div>
 
       {/* Features Comparison */}
@@ -240,6 +260,18 @@ export default function SubscriptionPlans() {
           </Card>
         </div>
       </div>
+
+      {/* Unified Checkout Dialog */}
+      {targetPlan && (
+        <UnifiedCheckoutDialog
+          plan={targetPlan}
+          currentSubscription={currentSubscription}
+          checkoutType={checkoutType}
+          isOpen={showUnifiedCheckout}
+          onClose={handleCheckoutClose}
+          onSuccess={handleCheckoutSuccess}
+        />
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import PasswordInput from "@/components/ui/password-input";
 import ResultDisplay, { SummaryResult } from "@/components/ui/result-display";
-import { fileApi, summarizeApi, specializedSummarizeApi } from "@/lib/api-client";
+import { fileApi, summarizerApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications";
 import { Brain, Upload, ArrowLeft, FileText } from "lucide-react";

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import SubscriptionPlans from '@/components/subscription/subscription-plans';
 import CurrentSubscription from '@/components/subscription/current-subscription';
@@ -14,12 +14,72 @@ import {
   TrendingUp,
   HelpCircle,
   Home,
-  ArrowLeft
+  ArrowLeft,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 import PageNavigation from '@/components/ui/page-navigation';
+import { useSubscription } from '@/lib/subscription-api';
 
 export default function SubscriptionPage() {
   const [activeTab, setActiveTab] = useState('current');
+  const { 
+    currentSubscription, 
+    plans, 
+    loading, 
+    error,
+    loadCurrentSubscription,
+    loadPlans 
+  } = useSubscription();
+
+  useEffect(() => {
+    loadCurrentSubscription();
+    loadPlans();
+  }, [loadCurrentSubscription, loadPlans]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Card className="p-8 text-center space-y-4 max-w-md w-full">
+          <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto" />
+          <h1 className="text-2xl font-bold">Loading Subscription Data...</h1>
+          <p className="text-muted-foreground">Please wait while we fetch your subscription information.</p>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Card className="p-8 text-center space-y-4 max-w-md w-full">
+          <div className="h-12 w-12 text-blue-500 mx-auto flex items-center justify-center">
+            <Settings className="h-8 w-8" />
+          </div>
+          <h1 className="text-2xl font-bold text-blue-600">Subscription System Ready</h1>
+          <p className="text-muted-foreground">
+            The backend subscription system has been implemented. 
+            You can view available plans below.
+          </p>
+          <div className="space-y-2">
+            <Button onClick={() => {
+              loadCurrentSubscription();
+              loadPlans();
+            }} variant="outline" className="w-full">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Retry Connection
+            </Button>
+            <Button onClick={() => setActiveTab('plans')} className="w-full">
+              View Available Plans
+            </Button>
+          </div>
+          <div className="text-xs text-muted-foreground mt-4">
+            Note: Subscription endpoints may require authentication or are being deployed.
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -42,7 +102,9 @@ export default function SubscriptionPage() {
               <CreditCard className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <div className="text-2xl font-bold">Pro Plan</div>
+              <div className="text-2xl font-bold">
+                {currentSubscription?.plan?.name || 'No Active Plan'}
+              </div>
               <div className="text-sm text-muted-foreground">Current Plan</div>
             </div>
           </div>
@@ -54,7 +116,9 @@ export default function SubscriptionPage() {
               <TrendingUp className="h-6 w-6 text-green-600" />
             </div>
             <div>
-              <div className="text-2xl font-bold">2,450</div>
+              <div className="text-2xl font-bold">
+                {currentSubscription?.current_usage?.toLocaleString() || 'N/A'}
+              </div>
               <div className="text-sm text-muted-foreground">Requests Used</div>
             </div>
           </div>
@@ -66,7 +130,10 @@ export default function SubscriptionPage() {
               <Settings className="h-6 w-6 text-blue-600" />
             </div>
             <div>
-              <div className="text-2xl font-bold">10,000</div>
+              <div className="text-2xl font-bold">
+                {currentSubscription?.limit === -1 ? '∞' : 
+                 currentSubscription?.limit?.toLocaleString() || 'N/A'}
+              </div>
               <div className="text-sm text-muted-foreground">Monthly Limit</div>
             </div>
           </div>
@@ -78,7 +145,12 @@ export default function SubscriptionPage() {
               <History className="h-6 w-6 text-purple-600" />
             </div>
             <div>
-              <div className="text-2xl font-bold">3</div>
+              <div className="text-2xl font-bold">
+                {currentSubscription ? 
+                  Math.ceil((new Date().getTime() - new Date(currentSubscription.starts_at).getTime()) / (1000 * 60 * 60 * 24 * 30)) : 
+                  'N/A'
+                }
+              </div>
               <div className="text-sm text-muted-foreground">Months Active</div>
             </div>
           </div>

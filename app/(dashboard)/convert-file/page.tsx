@@ -26,7 +26,7 @@ import {
   Zap
 } from 'lucide-react';
 import { fileConversionApi, fileConversionApiHelpers } from '@/lib/file-conversion-api';
-import { apiClient } from '@/lib/api-client';
+import { converterApi } from '@/lib/api';
 import type { 
   FileUploadResponse, 
   ConversionResult, 

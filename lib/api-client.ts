@@ -470,10 +470,13 @@ export const API_ENDPOINTS = {
   PLANS: '/plans',
   SUBSCRIPTION: '/subscription',
   SUBSCRIPTION_HISTORY: '/subscription/history',
-  USAGE: '/usage',
+  SUBSCRIPTION_UPGRADE: '/subscription/upgrade',
+  SUBSCRIPTION_DOWNGRADE: '/subscription/downgrade',
+  SUBSCRIPTION_CANCEL: '/subscription/cancel',
+  USAGE_STATS: '/usage',
   
   // Payment
-  CHECKOUT: '/checkout',
+  CHECKOUT_CREATE: '/checkout',
   
   // AI Tools
   YOUTUBE_SUMMARIZE: '/youtube/summarize',
@@ -672,6 +675,89 @@ export const asyncYouTubeApi = {
 
 // Specialized API endpoints for different input types
 export const specializedSummarizeApi = {
+  // Unified summarize function that routes to appropriate specialized endpoint
+  summarize: async (request: SummarizeRequest): Promise<SummarizeResponse | AsyncSummarizeResponse> => {
+    const { content_type, source, options } = request;
+    
+    switch (content_type) {
+      case 'text':
+        return apiClient.post<SummarizeResponse>('/summarize/async/text', { 
+          text: source.data, 
+          options 
+        });
+      
+      case 'youtube':
+        return apiClient.post<AsyncSummarizeResponse>('/summarize/async/youtube', { 
+          url: source.data, 
+          options 
+        });
+      
+      case 'link':
+        return apiClient.post<AsyncSummarizeResponse>('/summarize/link', { 
+          url: source.data, 
+          options 
+        });
+      
+      case 'pdf':
+      case 'audio':
+        // For file-based content, we need to handle file upload differently
+        // This should use the file upload system first, then call the appropriate endpoint
+        return apiClient.post<AsyncSummarizeResponse>('/summarize/async/file', {
+          file_id: source.data,
+          options
+        });
+      
+      default:
+        throw new Error(`Unsupported content type: ${content_type}`);
+    }
+  },
+
+  // Password-protected summarization
+  summarizeWithPassword: async (request: SummarizeRequest & { password: string }): Promise<SummarizeResponse | AsyncSummarizeResponse> => {
+    const { content_type, source, options, password } = request;
+    const requestWithPassword = {
+      content_type,
+      source,
+      options: {
+        ...options,
+        password
+      }
+    };
+    
+    return specializedSummarizeApi.summarize(requestWithPassword);
+  },
+
+  // Poll job completion
+  pollJobCompletion: async (
+    jobId: string, 
+    maxAttempts: number = 60, 
+    interval: number = 2000
+  ): Promise<{ success: boolean; result?: any; error?: string }> => {
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const status = await specializedSummarizeApi.getJobStatus(jobId);
+        
+        if (status.status === 'completed') {
+          const result = await specializedSummarizeApi.getJobResult(jobId);
+          return { success: true, result };
+        } else if (status.status === 'failed') {
+          return { success: false, error: status.error || 'Job failed' };
+        }
+        
+        // Wait before next poll
+        await new Promise(resolve => setTimeout(resolve, interval));
+      } catch (error) {
+        console.error(`Poll attempt ${i + 1} failed:`, error);
+        if (i === maxAttempts - 1) {
+          return { success: false, error: 'Polling failed' };
+        }
+        await new Promise(resolve => setTimeout(resolve, interval));
+      }
+    }
+    
+    return { success: false, error: 'Job timeout' };
+  },
+
   // YouTube Video Summarization
   startYouTubeJob: (url: string, options: any = {}) =>
     apiClient.post<AsyncSummarizeResponse>('/summarize/async/youtube', { url, options }),

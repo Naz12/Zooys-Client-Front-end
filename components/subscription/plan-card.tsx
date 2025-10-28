@@ -13,6 +13,7 @@ interface PlanCardProps {
   isPopular?: boolean;
   onSelect?: (plan: SubscriptionPlan) => void;
   onUpgrade?: (plan: SubscriptionPlan) => void;
+  onDowngrade?: (plan: SubscriptionPlan) => void;
   loading?: boolean;
 }
 
@@ -22,6 +23,7 @@ export default function PlanCard({
   isPopular = false, 
   onSelect, 
   onUpgrade,
+  onDowngrade,
   loading = false 
 }: PlanCardProps) {
   const formatPrice = (price: number, currency: string, interval: string) => {
@@ -75,23 +77,32 @@ export default function PlanCard({
         {/* Price */}
         <div className="space-y-1">
           <div className="text-3xl font-bold">
-            {formatPrice(plan.price, plan.currency, plan.interval)}
+            {formatPrice(plan.price, plan.currency, 'monthly')}
           </div>
-          {plan.interval === 'yearly' && (
-            <div className="text-sm text-green-600 font-medium">
-              Save 20% with yearly billing
-            </div>
-          )}
         </div>
 
         {/* Features */}
         <div className="space-y-2 text-left">
-          {plan.features.map((feature, index) => (
-            <div key={index} className="flex items-center space-x-2">
-              <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-              <span className="text-sm">{feature}</span>
-            </div>
-          ))}
+          <div className="flex items-center space-x-2">
+            <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+            <span className="text-sm">
+              {plan.limit === -1 || plan.limit >= 10000 
+                ? 'Unlimited AI requests' 
+                : `${plan.limit.toLocaleString()} AI requests per month`}
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+            <span className="text-sm">All AI tools access</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+            <span className="text-sm">Priority support</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+            <span className="text-sm">Monthly billing</span>
+          </div>
         </div>
 
         {/* Usage Limit */}
@@ -101,7 +112,7 @@ export default function PlanCard({
             {plan.limit === -1 ? 'Unlimited' : `${plan.limit.toLocaleString()} requests`}
           </div>
           <div className="text-xs text-muted-foreground">
-            {plan.interval === 'monthly' ? 'per month' : 'per year'}
+            per month
           </div>
         </div>
 
@@ -112,13 +123,36 @@ export default function PlanCard({
               Current Plan
             </Button>
           ) : (
-            <Button
-              className={`w-full ${isPopular ? 'bg-primary hover:bg-primary/90' : ''}`}
-              onClick={() => onSelect?.(plan)}
-              disabled={loading}
-            >
-              {loading ? 'Processing...' : onUpgrade ? 'Upgrade' : 'Select Plan'}
-            </Button>
+            <div className="space-y-2">
+              {onUpgrade && (
+                <Button
+                  className="w-full bg-primary hover:bg-primary/90"
+                  onClick={() => onUpgrade(plan)}
+                  disabled={loading}
+                >
+                  {loading ? 'Processing...' : 'Upgrade Plan'}
+                </Button>
+              )}
+              {onDowngrade && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => onDowngrade(plan)}
+                  disabled={loading}
+                >
+                  {loading ? 'Processing...' : 'Downgrade Plan'}
+                </Button>
+              )}
+              {onSelect && !onUpgrade && !onDowngrade && (
+                <Button
+                  className={`w-full ${isPopular ? 'bg-primary hover:bg-primary/90' : ''}`}
+                  onClick={() => onSelect(plan)}
+                  disabled={loading}
+                >
+                  {loading ? 'Processing...' : 'Select Plan'}
+                </Button>
+              )}
+            </div>
           )}
         </div>
       </div>

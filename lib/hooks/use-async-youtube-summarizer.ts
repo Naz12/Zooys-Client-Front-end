@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from 'react';
-import { asyncYouTubeApi, specializedSummarizeApi } from '@/lib/api-client';
+import { summarizerApi } from '@/lib/api';
 import type { 
   AsyncSummarizeRequest, 
   JobStatusResponse, 
@@ -101,7 +101,7 @@ export const useAsyncYouTubeSummarizer = (): UseAsyncYouTubeReturn => {
 
       pollAttemptsRef.current++;
 
-      const statusResponse = await specializedSummarizeApi.getJobStatusByUrl(pollUrl);
+      const statusResponse = await summarizerApi.getJobStatus(pollUrl);
       console.log('Job status response:', statusResponse);
 
       // Reset retry count on successful request
@@ -143,7 +143,7 @@ export const useAsyncYouTubeSummarizer = (): UseAsyncYouTubeReturn => {
 
       if (statusData.status === 'completed') {
         // Get the final result
-        const resultResponse = await specializedSummarizeApi.getJobResultByUrl(resultUrl);
+        const resultResponse = await summarizerApi.getJobResult(resultUrl);
         console.log('Job result response:', resultResponse);
 
         // The backend returns result data directly or nested under 'data' property
@@ -281,9 +281,9 @@ export const useAsyncYouTubeSummarizer = (): UseAsyncYouTubeReturn => {
       console.log('Starting async YouTube summarization:', request);
 
       // Use specialized YouTube endpoint
-      const asyncResponse = await specializedSummarizeApi.startYouTubeJob(
-        videoUrl,
-        {
+      const asyncResponse = await summarizerApi.summarizeYouTube({
+        url: videoUrl,
+        options: {
           language: language || 'en',
           format: mode || 'bundle',
           focus: 'summary'

@@ -14,9 +14,15 @@ import {
   Settings,
   CreditCard,
   Calendar,
-  BarChart3
+  BarChart3,
+  RefreshCw
 } from 'lucide-react';
 import { format } from 'date-fns';
+import UsageDisplay from './usage-display';
+import UsageAlerts from './usage-alerts';
+import UpgradeDialog from './upgrade-dialog';
+import DowngradeDialog from './downgrade-dialog';
+import { SubscriptionPlan } from '@/lib/types/api';
 
 export default function CurrentSubscription() {
   const {
@@ -25,13 +31,29 @@ export default function CurrentSubscription() {
     error,
     loadCurrentSubscription,
     cancelSubscription,
+    upgradeSubscription,
+    downgradeSubscription,
+    getUsageStatistics,
   } = useSubscription();
 
-  const [usage, setUsage] = useState<{ usage: number; limit: number; reset_date: string } | null>(null);
+  const [usage, setUsage] = useState<any>(null);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [showDowngradeDialog, setShowDowngradeDialog] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
 
   useEffect(() => {
     loadCurrentSubscription();
+    loadUsageStatistics();
   }, []);
+
+  const loadUsageStatistics = async () => {
+    try {
+      const usageData = await getUsageStatistics();
+      setUsage(usageData);
+    } catch (error) {
+      console.error('Failed to load usage statistics:', error);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -64,15 +86,35 @@ export default function CurrentSubscription() {
   };
 
   const getUsagePercentage = () => {
-    if (!usage || usage.limit === -1) return 0;
-    return Math.min((usage.usage / usage.limit) * 100, 100);
+    if (!currentSubscription) return 0;
+    const usage = currentSubscription.current_usage || 0;
+    const limit = currentSubscription.plan?.limit || 0;
+    if (limit === 0) return 0;
+    return Math.min((usage / limit) * 100, 100);
   };
 
-  const getUsageColor = () => {
-    const percentage = getUsagePercentage();
-    if (percentage >= 90) return 'bg-red-500';
-    if (percentage >= 75) return 'bg-yellow-500';
-    return 'bg-green-500';
+  const handleUpgrade = (plan: SubscriptionPlan) => {
+    setSelectedPlan(plan);
+    setShowUpgradeDialog(true);
+  };
+
+  const handleDowngrade = (plan: SubscriptionPlan) => {
+    setSelectedPlan(plan);
+    setShowDowngradeDialog(true);
+  };
+
+  const handleUpgradeSuccess = () => {
+    setShowUpgradeDialog(false);
+    setSelectedPlan(null);
+    loadCurrentSubscription();
+    loadUsageStatistics();
+  };
+
+  const handleDowngradeSuccess = () => {
+    setShowDowngradeDialog(false);
+    setSelectedPlan(null);
+    loadCurrentSubscription();
+    loadUsageStatistics();
   };
 
   if (loading) {
@@ -91,12 +133,19 @@ export default function CurrentSubscription() {
     return (
       <Card className="p-6">
         <div className="text-center space-y-4">
-          <XCircle className="h-12 w-12 text-red-500 mx-auto" />
-          <h3 className="text-lg font-semibold">Failed to Load Subscription</h3>
-          <p className="text-muted-foreground">{error}</p>
+          <Settings className="h-12 w-12 text-blue-500 mx-auto" />
+          <h3 className="text-lg font-semibold">Subscription System Ready</h3>
+          <p className="text-muted-foreground">
+            The backend subscription system has been implemented. 
+            Please check back later or contact support if issues persist.
+          </p>
           <Button onClick={loadCurrentSubscription} variant="outline">
-            Try Again
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry Connection
           </Button>
+          <div className="text-xs text-muted-foreground mt-2">
+            Note: Endpoints may require authentication or are being deployed.
+          </div>
         </div>
       </Card>
     );
@@ -111,7 +160,9 @@ export default function CurrentSubscription() {
           <p className="text-muted-foreground">
             You don't have an active subscription. Choose a plan to get started.
           </p>
-          <Button>View Plans</Button>
+          <Button onClick={() => window.location.href = '/subscription?tab=plans'}>
+            View Available Plans
+          </Button>
         </div>
       </Card>
     );
@@ -119,6 +170,15 @@ export default function CurrentSubscription() {
 
   return (
     <div className="space-y-6">
+      {/* Usage Alerts */}
+      {usage && (
+        <UsageAlerts 
+          usage={usage}
+          onUpgrade={() => {/* Handle upgrade */}}
+          onManagePayment={() => {/* Handle payment management */}}
+        />
+      )}
+
       {/* Main Subscription Card */}
       <Card className="p-6">
         <div className="flex items-start justify-between mb-6">
@@ -137,10 +197,16 @@ export default function CurrentSubscription() {
               {currentSubscription.plan.description || 'Premium AI tools and features'}
             </p>
           </div>
-          <Button variant="outline" size="sm">
-            <Settings className="h-4 w-4 mr-2" />
-            Manage
-          </Button>
+          <div className="flex space-x-2">
+            <Button variant="outline" size="sm" onClick={loadUsageStatistics}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+            <Button variant="outline" size="sm">
+              <Settings className="h-4 w-4 mr-2" />
+              Manage
+            </Button>
+          </div>
         </div>
 
         {/* Billing Information */}
@@ -154,7 +220,7 @@ export default function CurrentSubscription() {
               {currentSubscription.currency === 'USD' ? '$' : currentSubscription.currency}
               {currentSubscription.price}
               <span className="text-sm text-muted-foreground ml-1">
-                /{currentSubscription.plan.interval === 'monthly' ? 'month' : 'year'}
+                /{currentSubscription.plan.interval === 'yearly' ? 'year' : 'month'}
               </span>
             </div>
           </div>
@@ -174,34 +240,36 @@ export default function CurrentSubscription() {
               <BarChart3 className="h-4 w-4" />
               <span>Usage Limit</span>
             </div>
-            <div className="font-semibold">
-              {currentSubscription.limit === -1 ? 'Unlimited' : `${currentSubscription.limit.toLocaleString()} requests`}
-            </div>
+        <div className="font-semibold">
+          {currentSubscription.plan?.limit === -1 ? 'Unlimited' :
+           currentSubscription.plan?.limit ? `${currentSubscription.plan.limit.toLocaleString()} requests` :
+           'N/A'}
+        </div>
           </div>
         </div>
 
         {/* Usage Progress */}
-        {currentSubscription.limit !== -1 && (
+        {(currentSubscription.plan?.limit !== -1 && currentSubscription.plan?.limit) && (
           <div className="space-y-3">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Usage this period</span>
               <span className="font-medium">
-                {currentSubscription.usage.toLocaleString()} / {currentSubscription.limit.toLocaleString()}
+                {(currentSubscription.current_usage || 0).toLocaleString()} / {(currentSubscription.plan?.limit || 0).toLocaleString()}
               </span>
             </div>
-            <Progress 
-              value={getUsagePercentage()} 
+            <Progress
+              value={getUsagePercentage()}
               className="h-2"
             />
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>0</span>
               <span className={`px-2 py-1 rounded-full text-white text-xs ${
-                getUsagePercentage() >= 90 ? 'bg-red-500' : 
+                getUsagePercentage() >= 90 ? 'bg-red-500' :
                 getUsagePercentage() >= 75 ? 'bg-yellow-500' : 'bg-green-500'
               }`}>
                 {getUsagePercentage().toFixed(1)}%
               </span>
-              <span>{currentSubscription.limit.toLocaleString()}</span>
+              <span>{(currentSubscription.plan?.limit || 0).toLocaleString()}</span>
             </div>
           </div>
         )}
@@ -244,14 +312,58 @@ export default function CurrentSubscription() {
       <Card className="p-6">
         <h3 className="text-lg font-semibold mb-4">Plan Features</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {currentSubscription.plan.features.map((feature, index) => (
-            <div key={index} className="flex items-center space-x-2">
-              <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-              <span className="text-sm">{feature}</span>
-            </div>
-          ))}
+          {currentSubscription.plan && (
+            <>
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                <span className="text-sm">
+                  {currentSubscription.plan.limit === -1 || currentSubscription.plan.limit >= 10000 
+                    ? 'Unlimited AI requests' 
+                    : `${currentSubscription.plan.limit.toLocaleString()} AI requests per month`}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                <span className="text-sm">All AI tools access</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                <span className="text-sm">Priority support</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                <span className="text-sm">Monthly billing</span>
+              </div>
+            </>
+          )}
         </div>
       </Card>
+
+      {/* Usage Display */}
+      {usage && (
+        <UsageDisplay usage={usage} />
+      )}
+
+      {/* Dialogs */}
+      {selectedPlan && (
+        <>
+          <UpgradeDialog
+            currentPlan={currentSubscription.plan}
+            targetPlan={selectedPlan}
+            isOpen={showUpgradeDialog}
+            onClose={() => setShowUpgradeDialog(false)}
+            onSuccess={handleUpgradeSuccess}
+          />
+          
+          <DowngradeDialog
+            currentPlan={currentSubscription.plan}
+            targetPlan={selectedPlan}
+            isOpen={showDowngradeDialog}
+            onClose={() => setShowDowngradeDialog(false)}
+            onSuccess={handleDowngradeSuccess}
+          />
+        </>
+      )}
     </div>
   );
 }

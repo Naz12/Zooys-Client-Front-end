@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   /* config options here */
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',
+    PORT: '3000',
   },
   
   // CORS configuration for API routes
@@ -109,8 +110,10 @@ const nextConfig: NextConfig = {
   // Output configuration (only for production builds)
   ...(process.env.NODE_ENV === 'production' && {
     output: 'standalone',
-    outputFileTracingRoot: __dirname,
   }),
+  
+  // Explicitly set the project root to prevent workspace conflicts
+  outputFileTracingRoot: process.cwd(),
 
   // Compression
   compress: true,

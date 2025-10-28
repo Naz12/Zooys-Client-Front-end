@@ -50,48 +50,103 @@ export interface RegisterRequest {
 export interface SubscriptionPlan {
   id: number;
   name: string;
-  price: string;
+  price: number;
   currency: string;
   limit: number;
   is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  description?: string;
+  features?: string[];
+  interval?: 'monthly' | 'yearly';
+  popular?: boolean;
+  testing?: boolean;
 }
 
 export interface Subscription {
+  id: number;
   status: 'active' | 'none';
-  plan?: string;
-  price?: string;
-  currency?: string;
-  limit?: number;
-  starts_at?: string;
-  ends_at?: string;
-  message?: string;
+  active: boolean;
+  plan: SubscriptionPlan;
+  current_usage: number;
+  usage_reset_date: string;
+  billing_cycle_start: string;
+  starts_at: string;
+  ends_at: string;
+  grace_period_ends_at: string | null;
+  in_grace_period: boolean;
+  message?: string; // For "No active subscription" case
+  // Note: limit is accessed via plan.limit, not directly on subscription
 }
 
 export interface SubscriptionHistory {
-  plan: string;
-  price: string;
-  currency: string;
-  limit: number;
+  id: number;
+  plan: SubscriptionPlan;
   active: boolean;
+  current_usage: number;
   starts_at: string;
   ends_at: string;
+  created_at: string;
 }
 
 // Usage Statistics Types
-export interface UsageStats {
-  current_usage: number;
+export interface UsageStatistics {
+  status: 'active' | 'inactive' | 'cancelled' | 'expired';
+  plan: string;
+  price: number;
+  currency: string;
   plan_limit: number;
-  usage_percentage: number;
+  current_usage: number;
   remaining_usage: number;
-  reset_date: string;
-  by_tool: Record<string, number>;
+  usage_percentage: number;
+  starts_at: string;
+  ends_at: string;
+  usage_reset_date: string;
+  billing_cycle_start: string;
+  in_grace_period: boolean;
+  grace_period_ends_at: string | null;
+  by_tool: {
+    summarize: number;
+    math: number;
+    presentations: number;
+    flashcards: number;
+  };
 }
 
-// Payment Types
+// Upgrade/Downgrade Types
+export interface UpgradeRequest {
+  plan_id: number;
+}
+
+export interface DowngradeRequest {
+  plan_id: number;
+  immediately?: boolean;
+}
+
+export interface UpgradeResponse {
+  message: string;
+  subscription: Subscription;
+}
+
+export interface DowngradeResponse {
+  message: string;
+  subscription: Subscription;
+}
+
+export interface CancelRequest {
+  immediately?: boolean;
+}
+
+export interface CancelResponse {
+  message: string;
+  subscription: Subscription;
+}
+
+// Checkout Types
 export interface CheckoutRequest {
   plan_id: number;
-  success_url: string;
-  cancel_url: string;
+  success_url?: string;
+  cancel_url?: string;
 }
 
 export interface CheckoutResponse {

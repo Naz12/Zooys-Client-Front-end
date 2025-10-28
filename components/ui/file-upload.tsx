@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { fileApi } from "@/lib/api-client";
+import { fileApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications";
 import { 

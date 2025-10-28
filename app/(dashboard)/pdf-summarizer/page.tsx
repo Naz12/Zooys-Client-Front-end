@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, FileText, Plus, Search, Trash2, Eye, Calendar, AlertCircle } from "lucide-react";
-import { aiResultsApi } from "@/lib/api-client";
+import { subscriptionApi } from "@/lib/api";
 import { AIResult } from "@/lib/types/api";
 
 // Define the structure for result_data

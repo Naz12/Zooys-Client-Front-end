@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, ArrowRight, Shuffle, Play, Pause, Upload, FileText, Plus } from "lucide-react";
-import { flashcardApi, fileApi } from "@/lib/api-client";
+import { flashcardApi, fileApi } from "@/lib/api";
 import { Flashcard, FlashcardSet } from "@/lib/types/api";
 import { FileUpload } from "@/components/ui/file-upload";
 

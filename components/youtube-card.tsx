@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Settings, Loader2, Copy, Check } from "lucide-react";
 import { useState } from "react";
-import { aiToolsApi } from "@/lib/api-client";
+import { summarizerApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications";
 import type { YouTubeSummarizeResponse } from "@/lib/types/api";
@@ -65,7 +65,7 @@ export default function YoutubeCard() {
     setResult(null);
 
     try {
-      const response = await aiToolsApi.summarizeYouTube(inputLink.trim(), language);
+      const response = await summarizerApi.summarizeYouTube({ url: inputLink.trim(), options: { language } });
       setResult(response);
       showSuccess("Success", "Video summarized successfully!");
     } catch (error) {

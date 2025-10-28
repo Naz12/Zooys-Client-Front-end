@@ -14,7 +14,8 @@ import {
   Check,
   X
 } from "lucide-react";
-import { chatSessionApi, type ChatSession } from "@/lib/api-client";
+import { chatApi } from "@/lib/api";
+import type { ChatSession } from "@/lib/types/api";
 import { useNotifications } from "@/lib/notifications";
 
 interface ChatSessionSidebarProps {

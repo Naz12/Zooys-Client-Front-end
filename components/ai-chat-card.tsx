@@ -15,7 +15,7 @@ import {
   Trash2,
   History
 } from "lucide-react";
-import { chatApi } from "@/lib/api-client";
+import { chatApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications";
 import type { ChatMessage, ChatRequest, ChatResponse } from "@/lib/types/api";

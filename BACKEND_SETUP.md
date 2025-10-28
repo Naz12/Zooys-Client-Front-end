@@ -142,9 +142,9 @@ NODE_ENV=development
 
 If you want to continue development without the backend, you can:
 
-1. **Comment out RAG functionality temporarily**
-2. **Use mock data for testing**
-3. **Focus on frontend development first**
+1. **Use mock data for testing**
+2. **Focus on frontend development first**
+3. **Comment out backend-dependent features temporarily**
 
 The frontend will now show better error messages when the backend is not available.
 

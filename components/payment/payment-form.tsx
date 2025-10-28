@@ -147,7 +147,7 @@ export default function PaymentForm({ plan, onSuccess, onCancel }: PaymentFormPr
               {paymentUtils.formatAmount(plan.price * 100, plan.currency)}
             </div>
             <div className="text-sm text-muted-foreground">
-              per {plan.interval}
+              per {plan.interval || 'month'}
             </div>
           </div>
         </div>

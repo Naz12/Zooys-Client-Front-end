@@ -9,7 +9,8 @@ import TextInput from "@/components/ui/text-input";
 import PasswordInput from "@/components/ui/password-input";
 import ResultDisplay, { SummaryResult } from "@/components/ui/result-display";
 import UniversalResultDisplay from "@/components/universal-result-display";
-import { summarizeApi, specializedSummarizeApi, type SummarizeRequest, type SummarizeResponse, type AsyncSummarizeResponse, type JobStatusResponse, type JobResultResponse } from "@/lib/api-client";
+import { summarizerApi } from "@/lib/api";
+import type { SummarizeRequest, SummarizeResponse, AsyncSummarizeResponse, JobStatusResponse, JobResultResponse } from "@/lib/types/api";
 import { parseSummarizationResult, getResultDisplayMessage, getResultType } from "@/lib/result-parser";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications";
@@ -130,7 +131,7 @@ export default function SummarizerPage() {
           return;
       }
 
-      const response = await specializedSummarizeApi.summarize(request);
+      const response = await summarizerApi.summarize(request);
 
       if (response.success) {
         if ('job_id' in response) {
@@ -138,7 +139,7 @@ export default function SummarizerPage() {
           setIsPolling(true);
           setPollingStatus("Processing your request...");
           
-          const finalResult = await specializedSummarizeApi.pollJobCompletion(
+          const finalResult = await summarizerApi.pollJobCompletion(
             response.job_id,
             60,
             2000
@@ -208,7 +209,7 @@ export default function SummarizerPage() {
     setShowPasswordInput(false);
 
     try {
-      const response = await specializedSummarizeApi.summarizeWithPassword({
+      const response = await summarizerApi.summarizeWithPassword({
         ...pendingPasswordRequest,
         password
       });
@@ -218,7 +219,7 @@ export default function SummarizerPage() {
           setIsPolling(true);
           setPollingStatus("Processing your request...");
           
-          const finalResult = await specializedSummarizeApi.pollJobCompletion(
+          const finalResult = await summarizerApi.pollJobCompletion(
             response.job_id,
             60,
             2000

@@ -23,7 +23,7 @@ import {
   AlertTriangle
 } from "lucide-react";
 import { useNotifications } from "@/lib/notifications";
-import { flashcardApi, fileApi } from "@/lib/api-client";
+import { flashcardApi, fileApi } from "@/lib/api";
 import type { FlashcardSet, Flashcard } from "@/lib/types/api";
 
 interface FlashcardDisplayProps {

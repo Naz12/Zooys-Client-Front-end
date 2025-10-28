@@ -10,7 +10,8 @@ import LinkInput from "@/components/ui/link-input";
 import TextInput from "@/components/ui/text-input";
 import PasswordInput from "@/components/ui/password-input";
 import ResultDisplay, { SummaryResult } from "@/components/ui/result-display";
-import { summarizeApi, type SummarizeRequest, type SummarizeResponse, type AsyncSummarizeResponse, type JobStatusResponse, type JobResultResponse } from "@/lib/api-client";
+import { summarizerApi } from "@/lib/api";
+import type { SummarizeRequest, SummarizeResponse, AsyncSummarizeResponse, JobStatusResponse, JobResultResponse } from "@/lib/types/api";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications";
 import {

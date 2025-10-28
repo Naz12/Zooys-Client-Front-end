@@ -6,7 +6,7 @@ import LinkInput from "@/components/ui/link-input";
 import YouTubeResultDisplay from "@/components/youtube/youtube-result-display";
 import UniversalResultDisplay from "@/components/universal-result-display";
 import { useAsyncYouTubeSummarizer } from "@/lib/hooks/use-async-youtube-summarizer";
-import { specializedSummarizeApi } from "@/lib/api-client";
+import { summarizerApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications";
 import { Youtube, ArrowLeft, Settings, Brain, AlertCircle } from "lucide-react";

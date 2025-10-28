@@ -77,7 +77,7 @@ export default function DashboardPage() {
               </div>
             </div>
             <p className="text-sm text-muted-foreground mb-4">
-              Analyze PDF documents with intelligent summarization and RAG-powered Q&A capabilities.
+              Analyze PDF documents with intelligent summarization and document analysis capabilities.
             </p>
             <Link href="/pdf-summarizer">
               <Button variant="success" className="w-full">

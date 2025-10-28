@@ -3,6 +3,13 @@ export const environment = {
   // API Configuration
   API_BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',
   
+  // Frontend Configuration
+  FRONTEND_URL: process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000',
+  PORT: process.env.PORT || '3000',
+  
+  // Stripe Configuration
+  STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_...',
+  
   // Environment
   NODE_ENV: process.env.NODE_ENV || 'development',
   IS_DEVELOPMENT: process.env.NODE_ENV === 'development',
@@ -25,8 +32,8 @@ export const environment = {
   DEBOUNCE_DELAY: parseInt(process.env.NEXT_PUBLIC_DEBOUNCE_DELAY || '300'), // 300ms
   
   // Development
-  DEBUG_MODE: process.env.NEXT_PUBLIC_DEBUG_MODE === 'true',
-  ENABLE_LOGGING: process.env.NEXT_PUBLIC_ENABLE_LOGGING === 'true',
+  DEBUG_MODE: process.env.NEXT_PUBLIC_DEBUG_MODE === 'true' || true, // Enable debug mode
+  ENABLE_LOGGING: process.env.NEXT_PUBLIC_ENABLE_LOGGING === 'true' || true, // Enable logging
   
   // CORS Configuration
   CORS_ORIGINS: process.env.NEXT_PUBLIC_CORS_ORIGINS?.split(',') || ['http://localhost:3000'],
