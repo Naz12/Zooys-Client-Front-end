@@ -7,6 +7,7 @@ export { BaseApiClient, baseApiClient } from './base-api-client';
 export { AuthApiClient, authApi } from './auth-api';
 export { SubscriptionApiClient, subscriptionApi } from './subscription-api';
 export { FileApiClient, fileApi } from './file-api';
+export { PDFEditApiClient, pdfEditApi } from './pdf-edit-api';
 
 // Export AI tools
 export * from './ai-tools';
@@ -17,6 +18,7 @@ export class ApiClient extends BaseApiClient {
   public auth: AuthApiClient;
   public subscription: SubscriptionApiClient;
   public file: FileApiClient;
+  public pdfEdit: PDFEditApiClient;
 
   // AI tools
   public summarizer: any; // Will be imported from ai-tools
@@ -35,6 +37,7 @@ export class ApiClient extends BaseApiClient {
     this.auth = new AuthApiClient(baseURL);
     this.subscription = new SubscriptionApiClient(baseURL);
     this.file = new FileApiClient(baseURL);
+    this.pdfEdit = new PDFEditApiClient(baseURL);
 
     // Initialize AI tools clients
     this.summarizer = new (require('./ai-tools/summarizer-api').SummarizerApiClient)(baseURL);
@@ -55,6 +58,7 @@ export class ApiClient extends BaseApiClient {
     this.auth.setToken(token);
     this.subscription.setToken(token);
     this.file.setToken(token);
+    this.pdfEdit.setToken(token);
 
     // Update AI tools clients
     this.summarizer.setToken(token);
@@ -75,6 +79,7 @@ export const apiClient = new ApiClient();
 export { authApi } from './auth-api';
 export { subscriptionApi } from './subscription-api';
 export { fileApi } from './file-api';
+export { pdfEditApi } from './pdf-edit-api';
 
 // Re-export AI tools for convenience
 export {

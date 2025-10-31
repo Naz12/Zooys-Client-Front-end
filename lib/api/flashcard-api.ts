@@ -56,3 +56,5 @@ export class FlashcardApiClient extends BaseApiClient {
 // Create flashcard API client instance
 export const flashcardApi = new FlashcardApiClient();
 
+
+

@@ -796,3 +796,115 @@ export interface AppConfig {
     debounce_delay: number;
   };
 }
+
+// PDF Editing Types
+export interface PDFPage {
+  id: string;
+  pageNumber: number;
+  thumbnail?: string;
+  rotation: number;
+  width: number;
+  height: number;
+}
+
+export interface PDFDocument {
+  id: string;
+  name: string;
+  size: number;
+  pageCount: number;
+  pages: PDFPage[];
+  file: File;
+  url?: string;
+}
+
+export interface PDFEditOperation {
+  type: 'delete' | 'rotate' | 'duplicate' | 'reorder';
+  pageIds: string[];
+  data?: any;
+  timestamp: number;
+}
+
+export interface PDFEditRequest {
+  file: File;
+  operations: PDFEditOperation[];
+  metadata?: {
+    title?: string;
+    author?: string;
+    keywords?: string[];
+  };
+}
+
+export interface PDFEditResponse {
+  success: boolean;
+  message: string;
+  file_url?: string;
+  download_url?: string;
+  processing_time?: number;
+}
+
+export interface PDFMergeRequest {
+  files: File[];
+  page_selections?: {
+    file_id: string;
+    page_ranges: Array<{
+      start: number;
+      end: number;
+    }>;
+  }[];
+  merge_order: string[];
+  metadata?: {
+    title?: string;
+    author?: string;
+    keywords?: string[];
+  };
+}
+
+export interface PDFMergeResponse {
+  success: boolean;
+  message: string;
+  merged_file_url?: string;
+  download_url?: string;
+  total_pages?: number;
+  processing_time?: number;
+}
+
+export interface PDFSplitRequest {
+  file: File;
+  split_points: number[];
+  metadata?: {
+    title_prefix?: string;
+    author?: string;
+  };
+}
+
+export interface PDFSplitResponse {
+  success: boolean;
+  message: string;
+  split_files?: Array<{
+    name: string;
+    url: string;
+    page_count: number;
+  }>;
+  zip_url?: string;
+  processing_time?: number;
+}
+
+export interface PDFPreviewRequest {
+  file: File;
+  page_numbers?: number[];
+  thumbnail_size?: {
+    width: number;
+    height: number;
+  };
+}
+
+export interface PDFPreviewResponse {
+  success: boolean;
+  previews: Array<{
+    page_number: number;
+    thumbnail_url: string;
+    width: number;
+    height: number;
+  }>;
+  processing_time?: number;
+}

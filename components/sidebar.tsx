@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileUp,
+  FileEdit,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -45,6 +46,7 @@ function Sidebar() {
     { label: "AI Summarizer", href: "/summarizer", icon: <Brain size={18} /> },
     { label: "YouTube Summarizer", href: "/youtube-summarizer", icon: <Youtube size={18} /> },
     { label: "PDF Summarizer", href: "/pdf-summarizer", icon: <FileText size={18} /> },
+    { label: "PDF Editor", href: "/pdf-editor", icon: <FileEdit size={18} /> },
     { label: "AI Chat", href: "/chat", icon: <MessageSquare size={18} /> },
     { label: "AI Writer", href: "/writer", icon: <PenTool size={18} /> },
     { label: "AI Math Solver", href: "/math-solver", icon: <Calculator size={18} /> },
