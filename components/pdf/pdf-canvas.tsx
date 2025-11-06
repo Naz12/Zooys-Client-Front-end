@@ -1,17 +1,24 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { ZoomIn, ZoomOut, RotateCw, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCw, ChevronLeft, ChevronRight, Maximize2, Minimize2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Document, Page } from 'react-pdf';
-import { pdfjs } from 'react-pdf';
+import dynamic from 'next/dynamic';
 import type { PDFPage } from '@/lib/types/api';
 
-// Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+// Dynamically import react-pdf with SSR disabled to avoid server-side issues
+const Document = dynamic(
+  () => import('react-pdf').then((mod) => mod.Document),
+  { ssr: false }
+);
+
+const Page = dynamic(
+  () => import('react-pdf').then((mod) => mod.Page),
+  { ssr: false }
+);
 
 interface PDFCanvasProps {
   documentUrl?: string;
@@ -35,7 +42,17 @@ export function PDFCanvas({
   const [numPages, setNumPages] = useState<number>(0);
   const [pageError, setPageError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isClient, setIsClient] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
+
+  // Configure PDF.js worker only on client side
+  useEffect(() => {
+    setIsClient(true);
+    import('react-pdf').then((mod) => {
+      const { pdfjs } = mod;
+      pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+    });
+  }, []);
 
   // Zoom levels
   const zoomLevels = [25, 50, 75, 100, 125, 150, 200, 300, 400];
@@ -170,7 +187,7 @@ export function PDFCanvas({
       <Card className="flex-1">
         <div className="p-8 text-center">
           <div className="text-red-500 mb-4">
-            <Document size={48} className="mx-auto" />
+            <FileText size={48} className="mx-auto" />
           </div>
           <h3 className="text-lg font-semibold mb-2">Error Loading PDF</h3>
           <p className="text-slate-600 dark:text-slate-400">{pageError}</p>
@@ -184,12 +201,23 @@ export function PDFCanvas({
       <Card className="flex-1">
         <div className="p-8 text-center">
           <div className="text-slate-400 mb-4">
-            <Document size={48} className="mx-auto" />
+            <FileText size={48} className="mx-auto" />
           </div>
           <h3 className="text-lg font-semibold mb-2">No PDF Loaded</h3>
           <p className="text-slate-600 dark:text-slate-400">
             Upload a PDF file to start editing
           </p>
+        </div>
+      </Card>
+    );
+  }
+
+  // Don't render PDF components until client-side is ready
+  if (!isClient) {
+    return (
+      <Card className="flex-1">
+        <div className="p-8 text-center">
+          <div className="text-slate-500">Loading PDF viewer...</div>
         </div>
       </Card>
     );

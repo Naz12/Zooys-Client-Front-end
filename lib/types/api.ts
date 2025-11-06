@@ -54,39 +54,45 @@ export interface SubscriptionPlan {
   currency: string;
   limit: number;
   is_active: boolean;
-  created_at: string;
-  updated_at: string;
+  interval: 'monthly' | 'yearly';
   description?: string;
-  features?: string[];
-  interval?: 'monthly' | 'yearly';
+  features: string[];
   popular?: boolean;
   testing?: boolean;
 }
 
 export interface Subscription {
   id: number;
-  status: 'active' | 'none';
-  active: boolean;
+  user_id: number;
+  plan_id: number;
   plan: SubscriptionPlan;
+  active: boolean;
+  starts_at: string;
+  ends_at: string;
   current_usage: number;
   usage_reset_date: string;
   billing_cycle_start: string;
-  starts_at: string;
-  ends_at: string;
   grace_period_ends_at: string | null;
-  in_grace_period: boolean;
-  message?: string; // For "No active subscription" case
-  // Note: limit is accessed via plan.limit, not directly on subscription
+  last_alert_sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+  status: 'active' | 'cancelled' | 'expired' | 'inactive';
+  price: number;
+  currency: string;
+  limit: number;
 }
 
 export interface SubscriptionHistory {
   id: number;
   plan: SubscriptionPlan;
+  price: number;
+  currency: string;
+  limit: number;
   active: boolean;
-  current_usage: number;
   starts_at: string;
   ends_at: string;
   created_at: string;
+  status: 'active' | 'cancelled' | 'expired' | 'upgraded' | 'downgraded';
 }
 
 // Usage Statistics Types
@@ -104,18 +110,14 @@ export interface UsageStatistics {
   usage_reset_date: string;
   billing_cycle_start: string;
   in_grace_period: boolean;
-  grace_period_ends_at: string | null;
-  by_tool: {
-    summarize: number;
-    math: number;
-    presentations: number;
-    flashcards: number;
-  };
+  days_until_reset: number;
+  usage_by_tool: Record<string, number>;
 }
 
 // Upgrade/Downgrade Types
 export interface UpgradeRequest {
   plan_id: number;
+  via_stripe: boolean;
 }
 
 export interface DowngradeRequest {
@@ -124,29 +126,51 @@ export interface DowngradeRequest {
 }
 
 export interface UpgradeResponse {
+  success: boolean;
   message: string;
-  subscription: Subscription;
+  checkout_url: string;
+  session_id: string;
+  proration_amount: number;
+  new_plan: SubscriptionPlan;
+  effective_date: string;
 }
 
 export interface DowngradeResponse {
+  success: boolean;
   message: string;
-  subscription: Subscription;
+  new_plan: SubscriptionPlan;
+  effective_date: string;
+  proration_credit: number;
 }
 
 export interface CancelRequest {
   immediately?: boolean;
+  reason?: string;
 }
 
 export interface CancelResponse {
+  success: boolean;
   message: string;
-  subscription: Subscription;
+  cancellation_date: string;
+  access_until: string;
+  refund_amount: number;
 }
 
-// Checkout Types
+// Usage Statistics Types
+export interface UsageStats {
+  current_usage: number;
+  plan_limit: number;
+  usage_percentage: number;
+  remaining_usage: number;
+  reset_date: string;
+  by_tool: Record<string, number>;
+}
+
+// Payment Types
 export interface CheckoutRequest {
   plan_id: number;
-  success_url?: string;
-  cancel_url?: string;
+  success_url: string;
+  cancel_url: string;
 }
 
 export interface CheckoutResponse {
@@ -456,6 +480,28 @@ export interface FileUploadResponse {
   message: string;
   file_upload: FileUpload;
   file_url: string;
+}
+
+// PDF-specific file upload response (different structure from general file upload)
+export interface PDFFileUploadResponse {
+  success: boolean;
+  data: {
+    id: string;
+    original_filename: string;
+    file_size: number;
+    file_type: string;
+    file_path: string;
+    created_at: string;
+  };
+}
+
+// Uploaded file for PDF operations
+export interface UploadedFile {
+  file_id: string;
+  filename: string;
+  size: number;
+  file_type: string;
+  uploaded_at: string;
 }
 
 export interface FilesResponse {
@@ -795,116 +841,4 @@ export interface AppConfig {
     toast_duration: number;
     debounce_delay: number;
   };
-}
-
-// PDF Editing Types
-export interface PDFPage {
-  id: string;
-  pageNumber: number;
-  thumbnail?: string;
-  rotation: number;
-  width: number;
-  height: number;
-}
-
-export interface PDFDocument {
-  id: string;
-  name: string;
-  size: number;
-  pageCount: number;
-  pages: PDFPage[];
-  file: File;
-  url?: string;
-}
-
-export interface PDFEditOperation {
-  type: 'delete' | 'rotate' | 'duplicate' | 'reorder';
-  pageIds: string[];
-  data?: any;
-  timestamp: number;
-}
-
-export interface PDFEditRequest {
-  file: File;
-  operations: PDFEditOperation[];
-  metadata?: {
-    title?: string;
-    author?: string;
-    keywords?: string[];
-  };
-}
-
-export interface PDFEditResponse {
-  success: boolean;
-  message: string;
-  file_url?: string;
-  download_url?: string;
-  processing_time?: number;
-}
-
-export interface PDFMergeRequest {
-  files: File[];
-  page_selections?: {
-    file_id: string;
-    page_ranges: Array<{
-      start: number;
-      end: number;
-    }>;
-  }[];
-  merge_order: string[];
-  metadata?: {
-    title?: string;
-    author?: string;
-    keywords?: string[];
-  };
-}
-
-export interface PDFMergeResponse {
-  success: boolean;
-  message: string;
-  merged_file_url?: string;
-  download_url?: string;
-  total_pages?: number;
-  processing_time?: number;
-}
-
-export interface PDFSplitRequest {
-  file: File;
-  split_points: number[];
-  metadata?: {
-    title_prefix?: string;
-    author?: string;
-  };
-}
-
-export interface PDFSplitResponse {
-  success: boolean;
-  message: string;
-  split_files?: Array<{
-    name: string;
-    url: string;
-    page_count: number;
-  }>;
-  zip_url?: string;
-  processing_time?: number;
-}
-
-export interface PDFPreviewRequest {
-  file: File;
-  page_numbers?: number[];
-  thumbnail_size?: {
-    width: number;
-    height: number;
-  };
-}
-
-export interface PDFPreviewResponse {
-  success: boolean;
-  previews: Array<{
-    page_number: number;
-    thumbnail_url: string;
-    width: number;
-    height: number;
-  }>;
-  processing_time?: number;
 }

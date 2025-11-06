@@ -699,10 +699,21 @@ export const specializedSummarizeApi = {
         });
       
       case 'pdf':
-      case 'audio':
-        // For file-based content, we need to handle file upload differently
-        // This should use the file upload system first, then call the appropriate endpoint
+      case 'file':
         return apiClient.post<AsyncSummarizeResponse>('/summarize/async/file', {
+          file_id: source.data,
+          options
+        });
+      
+      case 'audio':
+      case 'video':
+        return apiClient.post<AsyncSummarizeResponse>('/summarize/async/audiovideo', {
+          file_id: source.data,
+          options
+        });
+      
+      case 'image':
+        return apiClient.post<AsyncSummarizeResponse>('/summarize/async/image', {
           file_id: source.data,
           options
         });
@@ -766,40 +777,59 @@ export const specializedSummarizeApi = {
   startTextJob: (text: string, options: any = {}) =>
     apiClient.post<AsyncSummarizeResponse>('/summarize/async/text', { text, options }),
   
-  // Audio/Video File Summarization
-  startAudioVideoJob: (file: File, options: any = {}) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('options', JSON.stringify(options));
-    return apiClient.post<AsyncSummarizeResponse>('/summarize/async/audiovideo', formData);
-  },
+  // Audio/Video File Summarization (uses file_id, not file upload)
+  startAudioVideoJob: (file_id: string, options: any = {}) =>
+    apiClient.post<AsyncSummarizeResponse>('/summarize/async/audiovideo', { file_id, options }),
   
-  // General File Upload Summarization
-  startFileJob: (file: File, options: any = {}) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('options', JSON.stringify(options));
-    return apiClient.post<AsyncSummarizeResponse>('/summarize/async/file', formData);
-  },
+  // General File Upload Summarization (uses file_id, not file upload)
+  startFileJob: (file_id: string, options: any = {}) =>
+    apiClient.post<AsyncSummarizeResponse>('/summarize/async/file', { file_id, options }),
   
   // Link Summarization
   startLinkJob: (url: string, options: any = {}) =>
     apiClient.post<AsyncSummarizeResponse>('/summarize/link', { url, options }),
   
-  // Image Summarization
-  startImageJob: (file: File, options: any = {}) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('options', JSON.stringify(options));
-    return apiClient.post<AsyncSummarizeResponse>('/summarize/async/image', formData);
-  },
+  // Image Summarization (uses file_id, not file upload)
+  startImageJob: (file_id: string, options: any = {}) =>
+    apiClient.post<AsyncSummarizeResponse>('/summarize/async/image', { file_id, options }),
   
-  // Shared status and result methods
+  // Universal status and result methods (works for all job types)
   getJobStatus: (jobId: string) =>
     apiClient.get<JobStatusResponse>(`${API_ENDPOINTS.SUMMARIZE_STATUS}?job_id=${jobId}`),
   
   getJobResult: (jobId: string) =>
     apiClient.get<JobResultResponse>(`${API_ENDPOINTS.SUMMARIZE_RESULT}?job_id=${jobId}`),
+  
+  // Type-specific status methods (provide better validation and include tool_type/input_type)
+  getYouTubeJobStatus: (jobId: string) =>
+    apiClient.get<JobStatusResponse>(`/status/summarize/youtube?job_id=${jobId}`),
+  
+  getYouTubeJobResult: (jobId: string) =>
+    apiClient.get<JobResultResponse>(`/result/summarize/youtube?job_id=${jobId}`),
+  
+  getTextJobStatus: (jobId: string) =>
+    apiClient.get<JobStatusResponse>(`/status/summarize/text?job_id=${jobId}`),
+  
+  getTextJobResult: (jobId: string) =>
+    apiClient.get<JobResultResponse>(`/result/summarize/text?job_id=${jobId}`),
+  
+  getFileJobStatus: (jobId: string) =>
+    apiClient.get<JobStatusResponse>(`/status/summarize/file?job_id=${jobId}`),
+  
+  getFileJobResult: (jobId: string) =>
+    apiClient.get<JobResultResponse>(`/result/summarize/file?job_id=${jobId}`),
+  
+  getAudioVideoJobStatus: (jobId: string) =>
+    apiClient.get<JobStatusResponse>(`/status/summarize/audiovideo?job_id=${jobId}`),
+  
+  getAudioVideoJobResult: (jobId: string) =>
+    apiClient.get<JobResultResponse>(`/result/summarize/audiovideo?job_id=${jobId}`),
+  
+  getLinkJobStatus: (jobId: string) =>
+    apiClient.get<JobStatusResponse>(`/status/summarize/web?job_id=${jobId}`),
+  
+  getLinkJobResult: (jobId: string) =>
+    apiClient.get<JobResultResponse>(`/result/summarize/web?job_id=${jobId}`),
   
   // Helper: use absolute poll/result URLs from backend response
   getJobStatusByUrl: (pollUrl: string) => {
@@ -808,7 +838,7 @@ export const specializedSummarizeApi = {
       const url = new URL(pollUrl);
       let endpoint = url.pathname.replace(/^\/api/, '');
       
-      // Handle both old format (/status/{id}) and new format (/status?job_id={id})
+      // Handle both old format (/status/{id}) and new format (/status?job_id={id} or /status/summarize/{type}?job_id={id})
       if (url.search) {
         // New format: has query parameters
         endpoint += url.search;
@@ -817,7 +847,14 @@ export const specializedSummarizeApi = {
         const pathParts = endpoint.split('/');
         if (pathParts.length >= 3 && pathParts[1] === 'status') {
           const jobId = pathParts[2];
-          endpoint = '/status?job_id=' + jobId;
+          // Check if it's a specific endpoint like /status/summarize/youtube/{id}
+          if (pathParts.length >= 4 && pathParts[2] === 'summarize') {
+            const type = pathParts[3];
+            const id = pathParts[4];
+            endpoint = `/status/summarize/${type}?job_id=${id}`;
+          } else {
+            endpoint = '/status?job_id=' + jobId;
+          }
         }
       }
       
@@ -838,7 +875,7 @@ export const specializedSummarizeApi = {
       const url = new URL(resultUrl);
       let endpoint = url.pathname.replace(/^\/api/, '');
       
-      // Handle both old format (/result/{id}) and new format (/result?job_id={id})
+      // Handle both old format (/result/{id}) and new format (/result?job_id={id} or /result/summarize/{type}?job_id={id})
       if (url.search) {
         // New format: has query parameters
         endpoint += url.search;
@@ -847,7 +884,14 @@ export const specializedSummarizeApi = {
         const pathParts = endpoint.split('/');
         if (pathParts.length >= 3 && pathParts[1] === 'result') {
           const jobId = pathParts[2];
-          endpoint = '/result?job_id=' + jobId;
+          // Check if it's a specific endpoint like /result/summarize/youtube/{id}
+          if (pathParts.length >= 4 && pathParts[2] === 'summarize') {
+            const type = pathParts[3];
+            const id = pathParts[4];
+            endpoint = `/result/summarize/${type}?job_id=${id}`;
+          } else {
+            endpoint = '/result?job_id=' + jobId;
+          }
         }
       }
       

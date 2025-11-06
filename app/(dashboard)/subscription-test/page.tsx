@@ -12,7 +12,7 @@ import {
   CreditCard,
   AlertTriangle
 } from 'lucide-react';
-import { subscriptionApi } from '@/lib/subscription-api';
+import { subscriptionApi } from '@/lib/api/subscription-api';
 import { checkoutApi } from '@/lib/checkout-api';
 import { environment } from '@/lib/environment';
 

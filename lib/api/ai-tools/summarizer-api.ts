@@ -125,6 +125,14 @@ export class SummarizerApiClient extends BaseApiClient {
     return this.get<JobResultResponse>(`/result/summarize/file?job_id=${jobId}`);
   }
 
+  async getAudioVideoSummarizeStatus(jobId: string): Promise<JobStatusResponse> {
+    return this.get<JobStatusResponse>(`/status/summarize/audiovideo?job_id=${jobId}`);
+  }
+
+  async getAudioVideoSummarizeResult(jobId: string): Promise<JobResultResponse> {
+    return this.get<JobResultResponse>(`/result/summarize/audiovideo?job_id=${jobId}`);
+  }
+
   async getWebSummarizeStatus(jobId: string): Promise<JobStatusResponse> {
     return this.get<JobStatusResponse>(`/status/summarize/web?job_id=${jobId}`);
   }

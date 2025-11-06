@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useReducer, useEffect, useState, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState, ReactNode, useCallback, useMemo } from 'react';
 
 // Types
 interface User {
@@ -461,7 +461,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'AUTH_UPDATE_ACTIVITY' });
   };
 
-  const value: AuthContextType = {
+  // Memoize the context value to prevent unnecessary re-renders
+  const value: AuthContextType = useMemo(() => ({
     ...state,
     login,
     register,
@@ -469,7 +470,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearError,
     refreshToken,
     isAuthRestored,
-  };
+  }), [state, login, register, logout, clearError, refreshToken, isAuthRestored]);
 
   return (
     <AuthContext.Provider value={value}>

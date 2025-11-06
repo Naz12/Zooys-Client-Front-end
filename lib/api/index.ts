@@ -1,13 +1,22 @@
 "use client";
 
-// Export base API client
-export { BaseApiClient, baseApiClient } from './base-api-client';
+// Import base API client for use in this file
+import { BaseApiClient, baseApiClient } from './base-api-client';
 
-// Export core API clients
-export { AuthApiClient, authApi } from './auth-api';
-export { SubscriptionApiClient, subscriptionApi } from './subscription-api';
-export { FileApiClient, fileApi } from './file-api';
-export { PDFEditApiClient, pdfEditApi } from './pdf-edit-api';
+// Import API client classes for use in this file
+import { AuthApiClient, authApi } from './auth-api';
+import { SubscriptionApiClient, subscriptionApi } from './subscription-api';
+import { FileApiClient, fileApi } from './file-api';
+import { PDFOperationsApiClient, pdfOperationsApi } from './pdf-operations-api';
+import { UploadApiClient, uploadApi } from './upload-api';
+
+// Re-export all API clients
+export { BaseApiClient, baseApiClient };
+export { AuthApiClient, authApi };
+export { SubscriptionApiClient, subscriptionApi };
+export { FileApiClient, fileApi };
+export { PDFOperationsApiClient, pdfOperationsApi };
+export { UploadApiClient, uploadApi };
 
 // Export AI tools
 export * from './ai-tools';
@@ -18,7 +27,8 @@ export class ApiClient extends BaseApiClient {
   public auth: AuthApiClient;
   public subscription: SubscriptionApiClient;
   public file: FileApiClient;
-  public pdfEdit: PDFEditApiClient;
+  public pdfOperations: PDFOperationsApiClient;
+  public upload: UploadApiClient;
 
   // AI tools
   public summarizer: any; // Will be imported from ai-tools
@@ -37,7 +47,8 @@ export class ApiClient extends BaseApiClient {
     this.auth = new AuthApiClient(baseURL);
     this.subscription = new SubscriptionApiClient(baseURL);
     this.file = new FileApiClient(baseURL);
-    this.pdfEdit = new PDFEditApiClient(baseURL);
+    this.pdfOperations = new PDFOperationsApiClient(baseURL);
+    this.upload = new UploadApiClient(baseURL);
 
     // Initialize AI tools clients
     this.summarizer = new (require('./ai-tools/summarizer-api').SummarizerApiClient)(baseURL);
@@ -58,7 +69,8 @@ export class ApiClient extends BaseApiClient {
     this.auth.setToken(token);
     this.subscription.setToken(token);
     this.file.setToken(token);
-    this.pdfEdit.setToken(token);
+    this.pdfOperations.setToken(token);
+    this.upload.setToken(token);
 
     // Update AI tools clients
     this.summarizer.setToken(token);
@@ -74,12 +86,6 @@ export class ApiClient extends BaseApiClient {
 
 // Create main API client instance
 export const apiClient = new ApiClient();
-
-// Export individual API clients for direct access
-export { authApi } from './auth-api';
-export { subscriptionApi } from './subscription-api';
-export { fileApi } from './file-api';
-export { pdfEditApi } from './pdf-edit-api';
 
 // Re-export AI tools for convenience
 export {

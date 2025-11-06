@@ -1,6 +1,7 @@
 "use client";
 
 import { apiClient } from './api-client';
+import { uploadApi } from './api/upload-api';
 
 // File conversion API types
 export interface FileUploadResponse {
@@ -177,14 +178,33 @@ export class FileConversionApiClient {
 
   // Upload file
   async uploadFile(file: File, metadata?: Record<string, any>): Promise<FileUploadResponse> {
-    const formData = new FormData();
-    formData.append('file', file);
+    // Use the dedicated upload API
+    const response = await uploadApi.uploadSingleFile(file, undefined, metadata);
     
-    if (metadata) {
-      formData.append('metadata', JSON.stringify(metadata));
-    }
-
-    return apiClient.uploadFile<FileUploadResponse>('/files/upload', file, metadata);
+    // Convert to FileUploadResponse format expected by this API
+    return {
+      success: response.success,
+      message: 'File uploaded successfully',
+      file_upload: {
+        id: parseInt(response.data.id),
+        user_id: 0, // Not available in response
+        original_name: response.data.original_filename,
+        stored_name: response.data.original_filename,
+        file_path: response.data.file_path,
+        mime_type: response.data.file_type,
+        file_size: response.data.file_size,
+        file_type: response.data.file_type,
+        metadata: {
+          uploaded_at: response.data.created_at,
+          client_ip: '',
+          user_agent: null,
+        },
+        is_processed: false,
+        created_at: response.data.created_at,
+        updated_at: response.data.created_at,
+      },
+      file_url: response.data.file_path,
+    };
   }
 
   // Convert document
@@ -197,14 +217,38 @@ export class FileConversionApiClient {
     return apiClient.post<ExtractionResponse>('/file-processing/extract', request);
   }
 
-  // Check job status
-  async getJobStatus(jobId: string): Promise<JobStatusResponse> {
-    return apiClient.get<JobStatusResponse>(`/status?job_id=${jobId}`);
+  // Check conversion job status
+  async getConversionStatus(jobId: string): Promise<JobStatusResponse> {
+    return apiClient.get<JobStatusResponse>(`/status/document_conversion/file?job_id=${jobId}`);
   }
 
-  // Get job result
+  // Get conversion job result
+  async getConversionResult(jobId: string): Promise<ConversionResult> {
+    return apiClient.get<ConversionResult>(`/result/document_conversion/file?job_id=${jobId}`);
+  }
+
+  // Check extraction job status
+  async getExtractionStatus(jobId: string): Promise<JobStatusResponse> {
+    return apiClient.get<JobStatusResponse>(`/status/content_extraction/file?job_id=${jobId}`);
+  }
+
+  // Get extraction job result
+  async getExtractionResult(jobId: string): Promise<ExtractionResult> {
+    return apiClient.get<ExtractionResult>(`/result/content_extraction/file?job_id=${jobId}`);
+  }
+
+  // Generic job status (for backward compatibility, uses convert status)
+  async getJobStatus(jobId: string): Promise<JobStatusResponse> {
+    return this.getConversionStatus(jobId);
+  }
+
+  // Generic job result (for backward compatibility, tries to get conversion result)
   async getJobResult(jobId: string): Promise<ConversionResult | ExtractionResult> {
-    return apiClient.get<ConversionResult | ExtractionResult>(`/result?job_id=${jobId}`);
+    try {
+      return await this.getConversionResult(jobId);
+    } catch {
+      return await this.getExtractionResult(jobId);
+    }
   }
 
   // Get conversion capabilities
@@ -222,25 +266,61 @@ export class FileConversionApiClient {
     return apiClient.get<HealthCheckResponse>('/file-processing/health');
   }
 
-  // Poll job completion
-  async pollJobCompletion(
+  // Poll conversion job completion
+  async pollConversionCompletion(
     jobId: string, 
     maxAttempts: number = 60, 
     interval: number = 2000
-  ): Promise<ConversionResult | ExtractionResult> {
+  ): Promise<ConversionResult> {
     for (let i = 0; i < maxAttempts; i++) {
-      const status = await this.getJobStatus(jobId);
+      const status = await this.getConversionStatus(jobId);
       
       if (status.status === 'completed') {
-        return await this.getJobResult(jobId);
+        return await this.getConversionResult(jobId);
       } else if (status.status === 'failed') {
-        throw new Error(status.error || 'Job failed');
+        throw new Error(status.error || 'Conversion job failed');
       }
       
       await new Promise(resolve => setTimeout(resolve, interval));
     }
     
-    throw new Error('Job timeout');
+    throw new Error('Conversion job timeout');
+  }
+
+  // Poll extraction job completion
+  async pollExtractionCompletion(
+    jobId: string, 
+    maxAttempts: number = 60, 
+    interval: number = 2000
+  ): Promise<ExtractionResult> {
+    for (let i = 0; i < maxAttempts; i++) {
+      const status = await this.getExtractionStatus(jobId);
+      
+      if (status.status === 'completed') {
+        return await this.getExtractionResult(jobId);
+      } else if (status.status === 'failed') {
+        throw new Error(status.error || 'Extraction job failed');
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, interval));
+    }
+    
+    throw new Error('Extraction job timeout');
+  }
+
+  // Generic poll job completion (for backward compatibility)
+  async pollJobCompletion(
+    jobId: string, 
+    maxAttempts: number = 60, 
+    interval: number = 2000
+  ): Promise<ConversionResult | ExtractionResult> {
+    // Try conversion first
+    try {
+      return await this.pollConversionCompletion(jobId, maxAttempts, interval);
+    } catch {
+      // If conversion fails, try extraction
+      return await this.pollExtractionCompletion(jobId, maxAttempts, interval);
+    }
   }
 
   // Complete workflow: upload, convert, and extract
@@ -274,7 +354,7 @@ export class FileConversionApiClient {
         }
       });
       
-      results.convertResult = await this.pollJobCompletion(convertJobId.job_id);
+      results.convertResult = await this.pollConversionCompletion(convertJobId.job_id);
     }
 
     // 3. Extract if requested
@@ -286,7 +366,7 @@ export class FileConversionApiClient {
         ...options.extractionOptions
       });
       
-      results.extractResult = await this.pollJobCompletion(extractJobId.job_id);
+      results.extractResult = await this.pollExtractionCompletion(extractJobId.job_id);
     }
 
     return results;

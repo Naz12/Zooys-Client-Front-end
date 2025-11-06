@@ -288,7 +288,7 @@ export const useAsyncYouTubeSummarizer = (): UseAsyncYouTubeReturn => {
           format: mode || 'bundle',
           focus: 'summary'
         }
-      );
+      });
       console.log('Async job started:', asyncResponse);
 
       if (asyncResponse.job_id) {

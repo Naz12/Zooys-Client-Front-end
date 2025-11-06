@@ -30,6 +30,7 @@ import { converterApi } from '@/lib/api';
 import type { 
   FileUploadResponse, 
   ConversionResult, 
+  ExtractionResult,
   ConversionCapabilities
 } from '@/lib/file-conversion-api';
 
@@ -45,7 +46,7 @@ interface ProcessingState {
 interface Results {
   uploadResult?: FileUploadResponse;
   conversionResult?: ConversionResult;
-  summarizationResult?: any;
+  extractionResult?: ExtractionResult;
 }
 
 export default function ConvertFilePage() {
@@ -219,25 +220,72 @@ export default function ConvertFilePage() {
            }
          });
 
-         // Poll for conversion completion
-         const conversionResult = await fileConversionApi.pollJobCompletion(convertResponse.job_id);
-         setResults(prev => ({ ...prev, conversionResult }));
-         setProcessing(prev => ({ ...prev, isConverting: false, conversionProgress: 100 }));
+         // Poll for conversion completion with progress tracking
+         const pollConversion = async () => {
+           let attempts = 0;
+           const maxAttempts = 60;
+           while (attempts < maxAttempts) {
+             const status = await fileConversionApi.getConversionStatus(convertResponse.job_id);
+             setProcessing(prev => ({ ...prev, conversionProgress: status.progress || 0 }));
+             
+             if (status.status === 'completed') {
+               const conversionResult = await fileConversionApi.getConversionResult(convertResponse.job_id);
+               setResults(prev => ({ ...prev, conversionResult }));
+               setProcessing(prev => ({ ...prev, isConverting: false, conversionProgress: 100 }));
+               return;
+             } else if (status.status === 'failed') {
+               throw new Error(status.error || 'Conversion failed');
+             }
+             
+             await new Promise(resolve => setTimeout(resolve, 2000));
+             attempts++;
+           }
+           throw new Error('Conversion timeout');
+         };
+         
+         await pollConversion();
        }
 
-       // Summarize file if enabled
+       // Extract file if enabled
        if (enableSummarization) {
          setProcessing(prev => ({ ...prev, isExtracting: true, extractionProgress: 0 }));
          
-         const summarizeResponse = await apiClient.post('/summarize/async/file', {
+         const extractResponse = await fileConversionApi.extractContent({
            file_id: fileId.toString(),
-           options: summarizationOptions
+           extraction_type: summarizationOptions.format === 'detailed' ? 'text' : 'text',
+           language: summarizationOptions.language || 'eng',
+           include_formatting: summarizationOptions.include_formatting ?? true,
+           max_pages: summarizationOptions.max_pages || 10,
+           options: {
+             preserve_layout: true,
+             extract_images: false,
+           },
          });
 
-         // Poll for summarization completion
-         const summarizationResult = await fileConversionApi.pollJobCompletion(summarizeResponse.job_id);
-         setResults(prev => ({ ...prev, summarizationResult }));
-         setProcessing(prev => ({ ...prev, isExtracting: false, extractionProgress: 100 }));
+         // Poll for extraction completion with progress tracking
+         const pollExtraction = async () => {
+           let attempts = 0;
+           const maxAttempts = 60;
+           while (attempts < maxAttempts) {
+             const status = await fileConversionApi.getExtractionStatus(extractResponse.job_id);
+             setProcessing(prev => ({ ...prev, extractionProgress: status.progress || 0 }));
+             
+             if (status.status === 'completed') {
+               const extractionResult = await fileConversionApi.getExtractionResult(extractResponse.job_id);
+               setResults(prev => ({ ...prev, extractionResult }));
+               setProcessing(prev => ({ ...prev, isExtracting: false, extractionProgress: 100 }));
+               return;
+             } else if (status.status === 'failed') {
+               throw new Error(status.error || 'Extraction failed');
+             }
+             
+             await new Promise(resolve => setTimeout(resolve, 2000));
+             attempts++;
+           }
+           throw new Error('Extraction timeout');
+         };
+         
+         await pollExtraction();
        }
 
 
@@ -275,8 +323,8 @@ export default function ConvertFilePage() {
     }
   }, [capabilitiesLoading]);
 
-  const isProcessing = processing.isUploading || processing.isConverting;
-  const hasResults = results.uploadResult || results.conversionResult || results.summarizationResult;
+  const isProcessing = processing.isUploading || processing.isConverting || processing.isExtracting;
+  const hasResults = results.uploadResult || results.conversionResult || results.extractionResult;
   
   // Debug logging
   console.log('Selected file:', selectedFile);
@@ -301,7 +349,7 @@ export default function ConvertFilePage() {
 
         <div className="max-w-4xl mx-auto space-y-8">
           {/* Main Upload Card */}
-          <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+          <Card className="border-0 shadow-xl bg-slate-800/50 dark:bg-slate-800/50 backdrop-blur-sm">
             <CardContent className="p-8">
               {/* File Upload Area */}
               {!selectedFile ? (
@@ -312,8 +360,8 @@ export default function ConvertFilePage() {
                   className={`
                     relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 cursor-pointer
                     ${isDragOver 
-                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/20' 
-                      : 'border-slate-300 hover:border-indigo-400 hover:bg-slate-50 dark:border-slate-600 dark:hover:border-indigo-500 dark:hover:bg-slate-800/50'
+                      ? 'border-indigo-500 bg-indigo-950/30 dark:bg-indigo-950/30' 
+                      : 'border-slate-600 hover:border-indigo-500 hover:bg-slate-700/30 dark:border-slate-600 dark:hover:border-indigo-500 dark:hover:bg-slate-700/30'
                     }
                   `}
                   onClick={() => fileInputRef.current?.click()}
@@ -327,14 +375,14 @@ export default function ConvertFilePage() {
                   />
                   
                   <div className="space-y-4">
-                    <div className="w-16 h-16 bg-gradient-to-r from-indigo-100 to-purple-100 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-full flex items-center justify-center mx-auto">
-                      <Upload className="h-8 w-8 text-indigo-600" />
+                    <div className="w-16 h-16 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 rounded-full flex items-center justify-center mx-auto">
+                      <Upload className="h-8 w-8 text-indigo-400" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-semibold mb-2">
+                      <h3 className="text-xl font-semibold mb-2 text-slate-100">
                         {isDragOver ? 'Drop your file here' : 'Drag & drop your file here'}
                       </h3>
-                      <p className="text-muted-foreground mb-4">
+                      <p className="text-slate-400 mb-4">
                         or click to browse files
                       </p>
                       <div className="flex flex-wrap justify-center gap-2 text-xs text-muted-foreground">
@@ -349,14 +397,14 @@ export default function ConvertFilePage() {
                   </div>
                 </div>
               ) : (
-                <div className="border-2 border-green-400 bg-green-50 dark:bg-green-950/20 rounded-2xl p-6">
+                <div className="border-2 border-green-500/50 bg-green-950/30 dark:bg-green-950/30 rounded-2xl p-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center">
-                        <CheckCircle className="h-6 w-6 text-green-600" />
+                      <div className="w-12 h-12 bg-green-900/30 rounded-full flex items-center justify-center">
+                        <CheckCircle className="h-6 w-6 text-green-400" />
                       </div>
                       <div>
-                        <h3 className="text-lg font-semibold text-green-700 dark:text-green-400">
+                        <h3 className="text-lg font-semibold text-green-400">
                           File Ready!
                         </h3>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -390,7 +438,7 @@ export default function ConvertFilePage() {
                 <div className="mt-8 space-y-6">
                   <div className="flex items-center gap-3">
                     <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
-                    <h3 className="text-lg font-semibold">Conversion Settings</h3>
+                    <h3 className="text-lg font-semibold text-slate-100">Conversion Settings</h3>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -438,7 +486,7 @@ export default function ConvertFilePage() {
                           variant="outline" 
                           size="sm"
                           onClick={() => setTargetFormat('pdf')}
-                          className={targetFormat === 'pdf' ? 'bg-indigo-50 border-indigo-200' : ''}
+                          className={targetFormat === 'pdf' ? 'bg-indigo-950/50 border-indigo-500' : 'border-slate-600'}
                         >
                           <FileText className="h-4 w-4 mr-1" />
                           PDF
@@ -447,7 +495,7 @@ export default function ConvertFilePage() {
                           variant="outline" 
                           size="sm"
                           onClick={() => setTargetFormat('jpg')}
-                          className={targetFormat === 'jpg' ? 'bg-indigo-50 border-indigo-200' : ''}
+                          className={targetFormat === 'jpg' ? 'bg-indigo-950/50 border-indigo-500' : 'border-slate-600'}
                         >
                           <Image className="h-4 w-4 mr-1" />
                           JPG
@@ -456,7 +504,7 @@ export default function ConvertFilePage() {
                           variant="outline" 
                           size="sm"
                           onClick={() => setTargetFormat('png')}
-                          className={targetFormat === 'png' ? 'bg-indigo-50 border-indigo-200' : ''}
+                          className={targetFormat === 'png' ? 'bg-indigo-950/50 border-indigo-500' : 'border-slate-600'}
                         >
                           <Image className="h-4 w-4 mr-1" />
                           PNG
@@ -469,7 +517,7 @@ export default function ConvertFilePage() {
                   <div className="space-y-4">
                     <div className="flex items-center gap-3">
                       <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                      <h3 className="text-lg font-semibold">AI Summarization</h3>
+                      <h3 className="text-lg font-semibold text-slate-100">AI Summarization</h3>
                     </div>
                     
                     <div className="flex items-center space-x-2">
@@ -486,7 +534,7 @@ export default function ConvertFilePage() {
                     </div>
 
                     {enableSummarization && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-purple-50 dark:bg-purple-950/20 rounded-lg">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-purple-950/30 dark:bg-purple-950/30 rounded-lg border border-purple-800/50">
                         <div className="space-y-2">
                           <Label className="text-sm font-medium">Language</Label>
                           <Select 
@@ -555,10 +603,10 @@ export default function ConvertFilePage() {
 
                   <Button 
                     onClick={handleProcessFile} 
-                    disabled={!selectedFile || isProcessing || (!targetFormat && !enableSummarization)}
+                    disabled={!selectedFile || processing.isUploading || processing.isConverting || processing.isExtracting || (!targetFormat && !enableSummarization)}
                     className="w-full h-12 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-semibold"
                   >
-                    {isProcessing ? (
+                    {processing.isUploading || processing.isConverting || processing.isExtracting ? (
                       <>
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                         Processing...
@@ -605,6 +653,16 @@ export default function ConvertFilePage() {
                   <span>{processing.conversionProgress}%</span>
                 </div>
                 <Progress value={processing.conversionProgress} />
+              </div>
+            )}
+
+            {processing.isExtracting && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Extracting content...</span>
+                  <span>{processing.extractionProgress}%</span>
+                </div>
+                <Progress value={processing.extractionProgress} />
               </div>
             )}
 
@@ -724,88 +782,77 @@ export default function ConvertFilePage() {
                 </Card>
               )}
 
-              {/* Summarization Result */}
-              {results.summarizationResult && (
+              {/* Extraction Result */}
+              {results.extractionResult && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-purple-500" />
-                      AI Summary Complete
+                      <FileText className="h-5 w-5 text-purple-500" />
+                      Content Extraction Complete
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {results.summarizationResult.result && (
+                    {results.extractionResult.result?.extracted_content && (
                       <div className="space-y-4">
-                        {results.summarizationResult.result.summary && (
+                        {results.extractionResult.result.extracted_content.text && (
                           <div>
-                            <Label className="text-sm font-medium">Summary</Label>
-                            <div className="mt-2 p-4 bg-purple-50 dark:bg-purple-950/20 rounded-lg">
-                              <p className="text-sm text-muted-foreground">
-                                {results.summarizationResult.result.summary}
+                            <Label className="text-sm font-medium">Extracted Text</Label>
+                            <div className="mt-2 p-4 bg-purple-950/30 dark:bg-purple-950/30 rounded-lg max-h-64 overflow-y-auto border border-purple-800/50">
+                              <p className="text-sm text-slate-300 whitespace-pre-wrap">
+                                {results.extractionResult.result.extracted_content.text}
                               </p>
                             </div>
                           </div>
                         )}
 
-                        {results.summarizationResult.result.key_points && results.summarizationResult.result.key_points.length > 0 && (
-                          <div>
-                            <Label className="text-sm font-medium">Key Points</Label>
-                            <ul className="mt-2 space-y-1">
-                              {results.summarizationResult.result.key_points.map((point: string, index: number) => (
-                                <li key={index} className="text-sm text-muted-foreground flex items-start gap-2">
-                                  <span className="text-purple-500 mt-1">•</span>
-                                  {point}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {results.summarizationResult.result.insights && results.summarizationResult.result.insights.length > 0 && (
-                          <div>
-                            <Label className="text-sm font-medium">Insights</Label>
-                            <ul className="mt-2 space-y-1">
-                              {results.summarizationResult.result.insights.map((insight: string, index: number) => (
-                                <li key={index} className="text-sm text-muted-foreground flex items-start gap-2">
-                                  <span className="text-purple-500 mt-1">💡</span>
-                                  {insight}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {results.summarizationResult.result.metadata && (
+                        {results.extractionResult.result.extracted_content.metadata && (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
                             <div>
-                              <Label className="text-sm font-medium">Original Length</Label>
+                              <Label className="text-sm font-medium">Title</Label>
                               <p className="text-sm text-muted-foreground">
-                                {results.summarizationResult.result.metadata.original_length || 'N/A'} characters
+                                {results.extractionResult.result.extracted_content.metadata.title || 'N/A'}
                               </p>
                             </div>
                             <div>
-                              <Label className="text-sm font-medium">Summary Length</Label>
+                              <Label className="text-sm font-medium">Author</Label>
                               <p className="text-sm text-muted-foreground">
-                                {results.summarizationResult.result.metadata.summary_length || 'N/A'} characters
+                                {results.extractionResult.result.extracted_content.metadata.author || 'N/A'}
                               </p>
                             </div>
                             <div>
-                              <Label className="text-sm font-medium">Compression Ratio</Label>
+                              <Label className="text-sm font-medium">Pages</Label>
                               <p className="text-sm text-muted-foreground">
-                                {results.summarizationResult.result.metadata.compression_ratio 
-                                  ? `${(results.summarizationResult.result.metadata.compression_ratio * 100).toFixed(1)}%`
-                                  : 'N/A'
-                                }
+                                {results.extractionResult.result.extracted_content.metadata.pages || 'N/A'}
                               </p>
                             </div>
                             <div>
-                              <Label className="text-sm font-medium">Confidence Score</Label>
+                              <Label className="text-sm font-medium">Word Count</Label>
                               <p className="text-sm text-muted-foreground">
-                                {results.summarizationResult.result.metadata.confidence_score 
-                                  ? `${(results.summarizationResult.result.metadata.confidence_score * 100).toFixed(1)}%`
-                                  : 'N/A'
-                                }
+                                {results.extractionResult.result.extracted_content.metadata.word_count || 'N/A'}
                               </p>
+                            </div>
+                            <div>
+                              <Label className="text-sm font-medium">Language</Label>
+                              <p className="text-sm text-muted-foreground">
+                                {results.extractionResult.result.extracted_content.metadata.language || 'N/A'}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {results.extractionResult.result.extraction_info && (
+                          <div className="pt-4 border-t">
+                            <Label className="text-sm font-medium">Extraction Info</Label>
+                            <div className="mt-2 grid grid-cols-2 gap-4 text-sm text-muted-foreground">
+                              <div>
+                                <span className="font-medium">Type:</span> {results.extractionResult.result.extraction_info.extraction_type}
+                              </div>
+                              <div>
+                                <span className="font-medium">Pages Processed:</span> {results.extractionResult.result.extraction_info.pages_processed}
+                              </div>
+                              <div>
+                                <span className="font-medium">Processing Time:</span> {results.extractionResult.result.extraction_info.processing_time}
+                              </div>
                             </div>
                           </div>
                         )}

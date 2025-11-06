@@ -93,7 +93,6 @@ const nextConfig: NextConfig = {
 
   // Webpack configuration
   webpack: (config, { dev, isServer }) => {
-    // Next.js handles devtool configuration automatically
     // Custom webpack modifications can be added here if needed
     return config;
   },

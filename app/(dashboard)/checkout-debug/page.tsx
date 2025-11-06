@@ -12,7 +12,7 @@ import {
   CreditCard
 } from 'lucide-react';
 import { checkoutApi } from '@/lib/checkout-api';
-import { subscriptionApi } from '@/lib/subscription-api';
+import { subscriptionApi } from '@/lib/api/subscription-api';
 
 export default function CheckoutDebugPage() {
   const [loading, setLoading] = useState(false);
