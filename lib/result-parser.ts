@@ -38,11 +38,14 @@ export function parseSummarizationResult(result: any): ParsedSummaryResult | nul
   // Structure 1: Direct structure (your text summarization case)
   if (result.summary && result.key_points) {
     console.log('✅ Found direct structure (text summarization)');
+    // Extract model_used from metadata if not at top level
+    const modelUsed = result.model_used || result.metadata?.model_used || 'unknown';
     return {
       summary: result.summary,
       key_points: result.key_points,
       confidence_score: result.confidence_score,
-      model_used: result.model_used,
+      model_used: modelUsed,
+      metadata: result.metadata,
       raw_result: result
     };
   }

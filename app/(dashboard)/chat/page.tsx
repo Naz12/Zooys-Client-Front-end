@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { chatApi } from "@/lib/api";
+import { chatSessionApi } from "@/lib/api-client";
 import type { ChatRequest, ChatResponse, ChatSession } from "@/lib/types/api";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications";

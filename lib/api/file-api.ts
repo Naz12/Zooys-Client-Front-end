@@ -11,15 +11,21 @@ import type {
 } from '../types/api';
 
 export class FileApiClient extends BaseApiClient {
-  // Upload file
-  async uploadFile(request: FileUploadRequest): Promise<FileUploadResponse> {
+  // Upload file (renamed to avoid conflict with base class uploadFile)
+  async upload(request: FileUploadRequest): Promise<FileUploadResponse> {
+    // Backend expects metadata as an array, not a JSON string
     const formData = new FormData();
     formData.append('file', request.file);
     
     if (request.metadata) {
-      formData.append('metadata', JSON.stringify(request.metadata));
+      // Send metadata fields individually or as array entries
+      // Based on Laravel validation expecting an array
+      Object.entries(request.metadata).forEach(([key, value]) => {
+        formData.append(`metadata[${key}]`, String(value));
+      });
     }
 
+    // Use post with FormData - the interceptor will handle Content-Type correctly
     return this.post<FileUploadResponse>('/files/upload', formData);
   }
 

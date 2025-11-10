@@ -41,6 +41,16 @@ export class FlashcardApiClient extends BaseApiClient {
     return this.get<FlashcardSetsResponse>('/flashcards');
   }
 
+  // Get flashcard sets with pagination and search (alias for compatibility)
+  async getSets(page: number = 1, perPage: number = 15, search?: string): Promise<FlashcardSetsResponse> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      per_page: perPage.toString(),
+      ...(search && search.trim().length > 0 && { search: search.trim() })
+    });
+    return this.get<FlashcardSetsResponse>(`/flashcards?${params}`);
+  }
+
   // Get public flashcard sets
   async getPublicFlashcardSets(): Promise<FlashcardSetsResponse> {
     return this.get<FlashcardSetsResponse>('/flashcards/public');

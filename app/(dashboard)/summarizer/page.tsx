@@ -1,17 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import FileUpload, { FileUploadItem } from "@/components/ui/file-upload";
 import MediaUpload, { MediaUploadItem } from "@/components/ui/media-upload";
 import LinkInput from "@/components/ui/link-input";
 import TextInput from "@/components/ui/text-input";
 import PasswordInput from "@/components/ui/password-input";
-import ResultDisplay, { SummaryResult } from "@/components/ui/result-display";
-import UniversalResultDisplay from "@/components/universal-result-display";
 import { summarizerApi } from "@/lib/api";
-import type { SummarizeRequest, SummarizeResponse, AsyncSummarizeResponse, JobStatusResponse, JobResultResponse } from "@/lib/types/api";
-import { parseSummarizationResult, getResultDisplayMessage, getResultType } from "@/lib/result-parser";
+import type { SummarizeRequest } from "@/lib/types/api";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications";
 import {
@@ -21,9 +19,6 @@ import {
   Link as LinkIcon,
   Type,
   Loader2,
-  CheckCircle,
-  AlertCircle,
-  RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -32,16 +27,14 @@ type ContentType = "youtube" | "pdf" | "audio" | "link" | "text";
 export default function SummarizerPage() {
   const { user } = useAuth();
   const { showSuccess, showError } = useNotifications();
+  const router = useRouter();
   
   const [activeContentType, setActiveContentType] = useState<ContentType>("youtube");
   const [language, setLanguage] = useState("en");
   const [isLoading, setIsLoading] = useState(false);
-  const [isPolling, setIsPolling] = useState(false);
-  const [pollingStatus, setPollingStatus] = useState("");
   const [inputValue, setInputValue] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<FileUploadItem[]>([]);
   const [uploadedMedia, setUploadedMedia] = useState<MediaUploadItem[]>([]);
-  const [result, setResult] = useState<any>(null);
   const [uploadedFileIds, setUploadedFileIds] = useState<number[]>([]);
   const [showPasswordInput, setShowPasswordInput] = useState(false);
   const [pendingPasswordRequest, setPendingPasswordRequest] = useState<SummarizeRequest | null>(null);
@@ -67,13 +60,26 @@ export default function SummarizerPage() {
     }
 
     setIsLoading(true);
-    setResult(null);
 
     try {
       let request: SummarizeRequest;
 
       switch (activeContentType) {
         case "youtube":
+          request = {
+            content_type: "youtube",
+            source: {
+              type: "url",
+              data: inputValue.trim()
+            },
+            options: {
+              mode: "bundle",
+              language: language,
+              focus: "summary"
+            }
+          };
+          break;
+
         case "link":
           request = {
             content_type: "link",
@@ -105,18 +111,48 @@ export default function SummarizerPage() {
           break;
 
         case "pdf":
-        case "audio":
           if (uploadedFiles.length === 0) {
             showError("Error", "Please upload a file first");
             return;
           }
 
-          const fileId = uploadedFiles[0].id;
+          const uploadedFile = uploadedFiles[0];
+          if (uploadedFile.status !== 'completed' || !uploadedFile.uploadId) {
+            showError("Error", "Please wait for the file to finish uploading");
+            return;
+          }
+
           request = {
-            content_type: activeContentType,
+            content_type: "file",
             source: {
               type: "file",
-              data: fileId.toString()
+              data: uploadedFile.uploadId.toString()
+            },
+            options: {
+              mode: "summary",
+              language: language,
+              focus: "summary"
+            }
+          };
+          break;
+
+        case "audio":
+          if (uploadedMedia.length === 0) {
+            showError("Error", "Please upload a media file first");
+            return;
+          }
+
+          const uploadedMediaFile = uploadedMedia[0];
+          if (uploadedMediaFile.status !== 'completed' || !uploadedMediaFile.uploadId) {
+            showError("Error", "Please wait for the media file to finish uploading");
+            return;
+          }
+
+          request = {
+            content_type: "audio",
+            source: {
+              type: "file",
+              data: uploadedMediaFile.uploadId.toString()
             },
             options: {
               mode: "summary",
@@ -135,41 +171,22 @@ export default function SummarizerPage() {
 
       if (response.success) {
         if ('job_id' in response) {
-          // Async job - start polling
-          setIsPolling(true);
-          setPollingStatus("Processing your request...");
+          // Async job - navigate to result page immediately with job_id
+          const resultData = {
+            contentType: activeContentType,
+            originalContent: activeContentType === 'text' ? inputValue.trim() : 
+                            activeContentType === 'youtube' || activeContentType === 'link' ? inputValue.trim() :
+                            activeContentType === 'pdf' ? uploadedFiles[0]?.name || '' :
+                            activeContentType === 'audio' ? uploadedMedia[0]?.name || '' : '',
+            jobId: response.job_id,
+            pollUrl: response.poll_url,
+            resultUrl: response.result_url,
+            request: request
+          };
           
-          const finalResult = await summarizerApi.pollJobCompletion(
-            response.job_id,
-            60,
-            2000
-          );
-          
-          if (finalResult.success && finalResult.result) {
-            // Use universal result parser to handle all different response structures
-            const parsedResult = parseSummarizationResult(finalResult.result);
-
-            if (parsedResult) {
-              // Convert parsed result directly to the format expected by UniversalResultDisplay
-              const displayResult = {
-                success: true,
-                summary: parsedResult.summary,
-                key_points: parsedResult.key_points || [],
-                confidence_score: parsedResult.confidence_score || 0.8,
-                model_used: parsedResult.model_used || 'unknown',
-                metadata: parsedResult.metadata,
-                source_info: parsedResult.source_info,
-                ai_result: parsedResult.ai_result,
-                bundle: parsedResult.bundle,
-                file_info: parsedResult.file_info
-              };
-              setResult(displayResult);
-            } else {
-              showError("Error", "Failed to parse summarization result");
-            }
-          } else {
-            showError("Error", "Summarization failed");
-          }
+          // Store in sessionStorage for result page
+          sessionStorage.setItem('summarizerResult', JSON.stringify(resultData));
+          router.push('/summarizer/result');
         } else {
           // Direct result
           if (response.summary) {
@@ -185,7 +202,21 @@ export default function SummarizerPage() {
               bundle: response.bundle,
               file_info: response.file_info
             };
-            setResult(displayResult);
+            
+            // Navigate to result page with data
+            const resultData = {
+              contentType: activeContentType,
+              originalContent: activeContentType === 'text' ? inputValue.trim() : 
+                              activeContentType === 'youtube' || activeContentType === 'link' ? inputValue.trim() :
+                              activeContentType === 'pdf' ? uploadedFiles[0]?.name || '' :
+                              activeContentType === 'audio' ? uploadedMedia[0]?.name || '' : '',
+              result: displayResult,
+              request: request
+            };
+            
+            // Store in sessionStorage for result page
+            sessionStorage.setItem('summarizerResult', JSON.stringify(resultData));
+            router.push('/summarizer/result');
           } else {
             showError("Error", "No summary generated");
           }
@@ -197,8 +228,6 @@ export default function SummarizerPage() {
       showError("Error", error instanceof Error ? error.message : "Failed to summarize content");
     } finally {
       setIsLoading(false);
-      setIsPolling(false);
-      setPollingStatus("");
     }
   };
 
@@ -216,38 +245,22 @@ export default function SummarizerPage() {
 
       if (response.success) {
         if ('job_id' in response) {
-          setIsPolling(true);
-          setPollingStatus("Processing your request...");
+          // Async job - navigate to result page immediately with job_id
+          const resultData = {
+            contentType: pendingPasswordRequest.content_type,
+            originalContent: pendingPasswordRequest.content_type === 'text' ? pendingPasswordRequest.source.data : 
+                            pendingPasswordRequest.content_type === 'youtube' || pendingPasswordRequest.content_type === 'link' ? pendingPasswordRequest.source.data :
+                            pendingPasswordRequest.content_type === 'pdf' ? uploadedFiles[0]?.name || '' :
+                            pendingPasswordRequest.content_type === 'audio' ? uploadedMedia[0]?.name || '' : '',
+            jobId: response.job_id,
+            pollUrl: response.poll_url,
+            resultUrl: response.result_url,
+            request: pendingPasswordRequest
+          };
           
-          const finalResult = await summarizerApi.pollJobCompletion(
-            response.job_id,
-            60,
-            2000
-          );
-          
-          if (finalResult.success && finalResult.result) {
-            const parsedResult = parseSummarizationResult(finalResult.result);
-
-            if (parsedResult) {
-              const displayResult = {
-                success: true,
-                summary: parsedResult.summary,
-                key_points: parsedResult.key_points || [],
-                confidence_score: parsedResult.confidence_score || 0.8,
-                model_used: parsedResult.model_used || 'unknown',
-                metadata: parsedResult.metadata,
-                source_info: parsedResult.source_info,
-                ai_result: parsedResult.ai_result,
-                bundle: parsedResult.bundle,
-                file_info: parsedResult.file_info
-              };
-              setResult(displayResult);
-            } else {
-              showError("Error", "Failed to parse summarization result");
-            }
-          } else {
-            showError("Error", "Summarization failed");
-          }
+          // Store in sessionStorage for result page
+          sessionStorage.setItem('summarizerResult', JSON.stringify(resultData));
+          router.push('/summarizer/result');
         } else {
           if (response.summary) {
             const displayResult = {
@@ -262,7 +275,21 @@ export default function SummarizerPage() {
               bundle: response.bundle,
               file_info: response.file_info
             };
-            setResult(displayResult);
+            
+            // Navigate to result page with data
+            const resultData = {
+              contentType: pendingPasswordRequest.content_type,
+              originalContent: pendingPasswordRequest.content_type === 'text' ? pendingPasswordRequest.source.data : 
+                              pendingPasswordRequest.content_type === 'youtube' || pendingPasswordRequest.content_type === 'link' ? pendingPasswordRequest.source.data :
+                              pendingPasswordRequest.content_type === 'pdf' ? uploadedFiles[0]?.name || '' :
+                              pendingPasswordRequest.content_type === 'audio' ? uploadedMedia[0]?.name || '' : '',
+              result: displayResult,
+              request: pendingPasswordRequest
+            };
+            
+            // Store in sessionStorage for result page
+            sessionStorage.setItem('summarizerResult', JSON.stringify(resultData));
+            router.push('/summarizer/result');
           } else {
             showError("Error", "No summary generated");
           }
@@ -274,24 +301,55 @@ export default function SummarizerPage() {
       showError("Error", error instanceof Error ? error.message : "Failed to summarize content");
     } finally {
       setIsLoading(false);
-      setIsPolling(false);
-      setPollingStatus("");
       setPendingPasswordRequest(null);
     }
   };
 
-  const handleRegenerate = () => {
-    setResult(null);
-    handleSummarize();
+
+  const handleFileUpload = (filesOrCallback: FileUploadItem[] | ((prev: FileUploadItem[]) => FileUploadItem[])) => {
+    if (typeof filesOrCallback === 'function') {
+      // It's a callback function - use it directly with setState
+      setUploadedFiles(prev => {
+        const newFiles = filesOrCallback(prev);
+        // Extract upload IDs from the new files
+        const ids = newFiles
+          .filter(f => f.status === 'completed' && f.uploadId)
+          .map(f => f.uploadId!);
+        setUploadedFileIds(ids);
+        return newFiles;
+      });
+    } else {
+      // It's a direct array
+      setUploadedFiles(filesOrCallback);
+      // Extract upload IDs from files that have completed upload
+      const ids = filesOrCallback
+        .filter(f => f.status === 'completed' && f.uploadId)
+        .map(f => f.uploadId!);
+      setUploadedFileIds(ids);
+    }
   };
 
-  const handleFileUpload = (files: FileUploadItem[]) => {
-    setUploadedFiles(files);
-    setUploadedFileIds(files.map(f => f.id));
-  };
-
-  const handleMediaUpload = (media: MediaUploadItem[]) => {
-    setUploadedMedia(media);
+  const handleMediaUpload = (mediaOrCallback: MediaUploadItem[] | ((prev: MediaUploadItem[]) => MediaUploadItem[])) => {
+    if (typeof mediaOrCallback === 'function') {
+      // It's a callback function - use it directly with setState
+      setUploadedMedia(prev => {
+        const newMedia = mediaOrCallback(prev);
+        // Extract upload IDs from the new media files
+        const ids = newMedia
+          .filter(m => m.status === 'completed' && m.uploadId)
+          .map(m => m.uploadId!);
+        setUploadedFileIds(ids);
+        return newMedia;
+      });
+    } else {
+      // It's a direct array
+      setUploadedMedia(mediaOrCallback);
+      // Extract upload IDs from media files that have completed upload
+      const ids = mediaOrCallback
+        .filter(m => m.status === 'completed' && m.uploadId)
+        .map(m => m.uploadId!);
+      setUploadedFileIds(ids);
+    }
   };
 
   const renderContentInput = () => {
@@ -317,17 +375,27 @@ export default function SummarizerPage() {
       case "pdf":
         return (
           <FileUpload
-            onUpload={handleFileUpload}
-            acceptedTypes={["pdf", "doc", "docx", "txt"]}
-            maxFiles={1}
+            accept=".pdf,.doc,.docx,.txt"
+            maxSize={50}
+            multiple={false}
+            onFilesChange={handleFileUpload}
+            onUploadIdsChange={setUploadedFileIds}
+            files={uploadedFiles}
+            title="Upload PDF or Document"
+            description="Drag and drop a file here or click to browse"
           />
         );
       case "audio":
         return (
           <MediaUpload
-            onUpload={handleMediaUpload}
-            acceptedTypes={["mp3", "wav", "mp4", "avi", "mov"]}
-            maxFiles={1}
+            accept=".mp3,.wav,.mp4,.avi,.mov"
+            maxSize={100}
+            multiple={false}
+            onFilesChange={handleMediaUpload}
+            onUploadIdsChange={setUploadedFileIds}
+            files={uploadedMedia}
+            title="Upload Audio or Video File"
+            description="Drag and drop a media file here or click to browse"
           />
         );
       default:
@@ -406,35 +474,17 @@ export default function SummarizerPage() {
                     {isLoading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {isPolling ? pollingStatus : "Processing..."}
+                        Processing...
                       </>
                     ) : (
                       "Summarize"
                     )}
                   </Button>
-                  
-                  {result && (
-                    <Button
-                      variant="outline"
-                      onClick={handleRegenerate}
-                      disabled={isLoading}
-                    >
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      Regenerate
-                    </Button>
-                  )}
                 </div>
               </CardContent>
             </Card>
           </div>
         </div>
-
-        {/* Results */}
-        {result && (
-          <div className="mt-8">
-            <UniversalResultDisplay result={result} />
-          </div>
-        )}
 
         {/* Password Input Modal */}
         {showPasswordInput && (

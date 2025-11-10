@@ -80,11 +80,31 @@ export class BaseApiClient {
           config.headers.Authorization = `Bearer ${token}`;
         }
 
+        // Handle FormData - don't set Content-Type, let browser set it with boundary
+        if (config.data instanceof FormData) {
+          // Remove Content-Type header to let browser set it automatically with boundary
+          delete config.headers['Content-Type'];
+        }
+
         // Log request in development
         if (process.env.NODE_ENV === 'development') {
           console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`);
           if (config.data) {
-            console.log('Request Data:', config.data);
+            if (config.data instanceof FormData) {
+              console.log('Request Data: FormData');
+              // Log FormData entries for debugging
+              const entries: string[] = [];
+              for (const [key, value] of config.data.entries()) {
+                if (value instanceof File) {
+                  entries.push(`${key}: File(${value.name}, ${value.size} bytes)`);
+                } else {
+                  entries.push(`${key}: ${value}`);
+                }
+              }
+              console.log('FormData entries:', entries);
+            } else {
+              console.log('Request Data:', config.data);
+            }
           }
         }
 
@@ -120,6 +140,21 @@ export class BaseApiClient {
         if (process.env.NODE_ENV === 'development') {
           console.error(`❌ API Error: ${error.response?.status} ${error.config?.url}`);
           console.error('Error details:', error.response?.data);
+          if (error.response?.data?.messages) {
+            console.error('Validation messages:', JSON.stringify(error.response.data.messages, null, 2));
+          }
+          console.error('Error response:', error.response);
+          console.error('Request config:', error.config);
+          if (error.config?.data instanceof FormData) {
+            console.error('FormData entries:');
+            for (const [key, value] of error.config.data.entries()) {
+              if (value instanceof File) {
+                console.error(`  ${key}: File(${value.name}, ${value.size} bytes, ${value.type})`);
+              } else {
+                console.error(`  ${key}: ${value}`);
+              }
+            }
+          }
         }
 
         return Promise.reject(error);

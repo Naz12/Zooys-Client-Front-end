@@ -15,6 +15,7 @@ import {
   X
 } from "lucide-react";
 import { chatApi } from "@/lib/api";
+import { chatSessionApi } from "@/lib/api-client";
 import type { ChatSession } from "@/lib/types/api";
 import { useNotifications } from "@/lib/notifications";
 

@@ -99,18 +99,28 @@ export default function FileUpload({
       const file = newFiles[i];
       if (file.status === "uploading" && file.file) {
         try {
-          const response = await fileApi.upload(file.file, { tool_type: 'summarize' });
+          const response = await fileApi.upload({
+            file: file.file,
+            metadata: { tool_type: 'summarize' }
+          });
           
-          uploadIds.push(response.file_upload.id);
+          // Handle different response structures
+          const uploadId = (response as any).file_upload?.id || (response as any).id || (response as any).data?.id;
           
-          // Update file status
-          onFilesChange(prev => 
-            (prev || []).map(f => f.id === file.id ? { 
-              ...f, 
-              status: "completed" as const,
-              uploadId: response.file_upload.id
-            } : f)
-          );
+          if (uploadId) {
+            uploadIds.push(uploadId);
+            
+            // Update file status
+            onFilesChange(prev => 
+              (prev || []).map(f => f.id === file.id ? { 
+                ...f, 
+                status: "completed" as const,
+                uploadId: uploadId
+              } : f)
+            );
+          } else {
+            throw new Error('Invalid upload response structure');
+          }
           
           showSuccess("Success", `${file.name} uploaded successfully!`);
         } catch (error) {
