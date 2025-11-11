@@ -853,7 +853,7 @@ export const specializedSummarizeApi = {
             const id = pathParts[4];
             endpoint = `/status/summarize/${type}?job_id=${id}`;
           } else {
-            endpoint = '/status?job_id=' + jobId;
+          endpoint = '/status?job_id=' + jobId;
           }
         }
       }
@@ -890,7 +890,7 @@ export const specializedSummarizeApi = {
             const id = pathParts[4];
             endpoint = `/result/summarize/${type}?job_id=${id}`;
           } else {
-            endpoint = '/result?job_id=' + jobId;
+          endpoint = '/result?job_id=' + jobId;
           }
         }
       }

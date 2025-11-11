@@ -14,6 +14,39 @@ import type {
 } from '../../types/api';
 
 export class FlashcardApiClient extends BaseApiClient {
+  // Unified generate method that routes to appropriate method based on input_type
+  async generate(request: {
+    input?: string;
+    file_id?: string | number;
+    file?: File;
+    input_type: 'text' | 'file';
+    count?: number;
+    difficulty?: string;
+    style?: string;
+  }): Promise<AsyncSummarizeResponse> {
+    // If file is provided, we need to upload it first or use file_id
+    // For now, just send the request as-is (the backend should handle file uploads)
+    const requestData: any = {
+      input_type: request.input_type,
+      count: request.count,
+      difficulty: request.difficulty,
+      style: request.style,
+    };
+
+    if (request.input_type === 'text' && request.input) {
+      requestData.input = request.input;
+    } else if (request.input_type === 'file') {
+      if (request.file_id) {
+        requestData.file_id = request.file_id;
+      } else if (request.input) {
+        // Fallback: use input as description if file_id not provided
+        requestData.input = request.input;
+      }
+    }
+
+    return this.post<AsyncSummarizeResponse>('/flashcards/generate', requestData);
+  }
+
   // Generate flashcards (text)
   async generateFlashcardsText(request: {
     input: string;

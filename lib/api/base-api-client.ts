@@ -103,7 +103,7 @@ export class BaseApiClient {
               }
               console.log('FormData entries:', entries);
             } else {
-              console.log('Request Data:', config.data);
+            console.log('Request Data:', config.data);
             }
           }
         }

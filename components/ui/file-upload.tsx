@@ -109,15 +109,15 @@ export default function FileUpload({
           
           if (uploadId) {
             uploadIds.push(uploadId);
-            
-            // Update file status
-            onFilesChange(prev => 
-              (prev || []).map(f => f.id === file.id ? { 
-                ...f, 
-                status: "completed" as const,
+          
+          // Update file status
+          onFilesChange(prev => 
+            (prev || []).map(f => f.id === file.id ? { 
+              ...f, 
+              status: "completed" as const,
                 uploadId: uploadId
-              } : f)
-            );
+            } : f)
+          );
           } else {
             throw new Error('Invalid upload response structure');
           }
