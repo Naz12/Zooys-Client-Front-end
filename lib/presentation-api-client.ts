@@ -23,7 +23,7 @@ export interface GenerateOutlineRequest {
   language: 'English' | 'Spanish' | 'French' | 'German' | 'Italian' | 'Portuguese' | 'Chinese' | 'Japanese';
   tone: 'Professional' | 'Casual' | 'Academic' | 'Creative' | 'Formal';
   length: 'Short' | 'Medium' | 'Long';
-  model: 'gpt-3.5-turbo' | 'gpt-4';
+  model?: 'gpt-3.5-turbo' | 'gpt-4';
   file?: File;
   url?: string;
   youtube_url?: string;
@@ -31,22 +31,61 @@ export interface GenerateOutlineRequest {
 
 export interface GenerateOutlineResponse {
   success: boolean;
-  data: {
-    outline: PresentationOutline;
-    ai_result_id: number;
-  };
+  job_id: string;
+  message: string;
 }
 
-export interface UpdateOutlineRequest {
+export interface JobStatusResponse {
+  success: boolean;
+  job_id: string;
+  tool_type: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  progress: number;
+  stage?: string;
+  stage_message?: string;
+  stage_description?: string;
+  created_at?: string;
+  updated_at?: string;
+  logs?: Array<{
+    timestamp: string;
+    level: string;
+    message: string;
+    data: any;
+  }>;
+  error?: string;
+}
+
+export interface JobResultResponse {
+  success: boolean;
+  job_id: string;
+  tool_type: string;
+  result?: {
+    outline?: PresentationOutline;
+    content?: PresentationContent;
+    file_id?: number;
+    filename?: string;
+    download_url?: string;
+    file_size?: number;
+    slides_count?: number;
+    title?: string;
+  };
+  metadata?: any;
+  error?: string;
+}
+
+export interface PresentationContent {
+  title: string;
+  slides: Array<PresentationSlide & { content?: string }>;
+}
+
+export interface GenerateContentRequest {
   outline: PresentationOutline;
 }
 
-export interface UpdateOutlineResponse {
+export interface GenerateContentResponse {
   success: boolean;
-  data: {
-    outline: PresentationOutline;
-    ai_result_id: number;
-  };
+  job_id: string;
+  message: string;
 }
 
 export interface PresentationTemplate {
@@ -58,26 +97,20 @@ export interface PresentationTemplate {
 
 export interface TemplatesResponse {
   success: boolean;
-  data: {
-    templates: Record<string, PresentationTemplate>;
-  };
+  templates: Record<string, PresentationTemplate>;
 }
 
-export interface GeneratePowerPointRequest {
-  template: string;
-  color_scheme: string;
-  font_style: 'modern' | 'classic' | 'minimalist' | 'creative';
+export interface ExportPresentationRequest {
+  content: PresentationContent;
+  template?: string;
+  color_scheme?: string;
+  font_style?: 'modern' | 'classic' | 'minimalist' | 'creative';
 }
 
-export interface GeneratePowerPointResponse {
+export interface ExportPresentationResponse {
   success: boolean;
-  data: {
-    file_path: string;
-    file_size: number;
-    download_url: string;
-    slide_count: number;
-  };
-  message?: string;
+  job_id: string;
+  message: string;
 }
 
 export interface Presentation {
@@ -90,16 +123,35 @@ export interface Presentation {
   updated_at: string;
 }
 
+export interface PresentationFile {
+  id: number;
+  user_id: number;
+  title: string;
+  filename: string;
+  file_url: string;
+  file_size: number;
+  human_file_size: string;
+  template: string;
+  color_scheme: string;
+  font_style: string;
+  slides_count: number;
+  metadata?: {
+    exported_at: string;
+    exported_by: string;
+  };
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PresentationsResponse {
   success: boolean;
-  data: {
-    presentations: Presentation[];
-    pagination: {
-      current_page: number;
-      last_page: number;
-      per_page: number;
-      total: number;
-    };
+  data: PresentationFile[];
+  pagination: {
+    current_page: number;
+    per_page: number;
+    total: number;
+    last_page: number;
   };
 }
 
@@ -126,13 +178,28 @@ export interface DeletePresentationResponse {
   message: string;
 }
 
+export interface SavePresentationFileRequest {
+  file: File;
+  title?: string;
+}
+
+export interface SavePresentationFileResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    file_id: number;
+    filename: string;
+    file_url: string;
+  };
+}
+
 // Presentation API Client
 export class PresentationApiClient extends ApiClient {
   constructor() {
     super();
   }
 
-  // Step 1: Generate Outline
+  // Step 1: Generate Outline (Async - returns job_id)
   async generateOutline(request: GenerateOutlineRequest): Promise<GenerateOutlineResponse> {
     if (request.input_type === 'file' && request.file) {
       // File upload - use FormData
@@ -143,7 +210,7 @@ export class PresentationApiClient extends ApiClient {
       formData.append('language', request.language);
       formData.append('tone', request.tone);
       formData.append('length', request.length);
-      formData.append('model', request.model);
+      // Model is optional - backend will use default if not provided
 
       return this.uploadFile<GenerateOutlineResponse>(
         PRESENTATION_API_ENDPOINTS.GENERATE_OUTLINE,
@@ -154,7 +221,7 @@ export class PresentationApiClient extends ApiClient {
           language: request.language,
           tone: request.tone,
           length: request.length,
-          model: request.model
+          // Model is optional - backend will use default if not provided
         }
       );
     } else {
@@ -165,7 +232,7 @@ export class PresentationApiClient extends ApiClient {
         language: request.language,
         tone: request.tone,
         length: request.length,
-        model: request.model
+        // Model is optional - backend will use default if not provided
       };
 
       if (request.url) payload.url = request.url;
@@ -175,52 +242,38 @@ export class PresentationApiClient extends ApiClient {
     }
   }
 
-  // Step 2: Update Outline
-  async updateOutline(aiResultId: number, request: UpdateOutlineRequest): Promise<UpdateOutlineResponse> {
-    const endpoint = PRESENTATION_API_ENDPOINTS.UPDATE_OUTLINE.replace('{aiResultId}', aiResultId.toString());
-    return this.put<UpdateOutlineResponse>(endpoint, request);
+  // Get Job Status
+  async getJobStatus(jobId: string): Promise<JobStatusResponse> {
+    return this.get<JobStatusResponse>(`${PRESENTATION_API_ENDPOINTS.GET_JOB_STATUS}?job_id=${jobId}`);
   }
 
-  // Step 3: Get Templates
+  // Get Job Result
+  async getJobResult(jobId: string): Promise<JobResultResponse> {
+    return this.get<JobResultResponse>(`${PRESENTATION_API_ENDPOINTS.GET_JOB_RESULT}?job_id=${jobId}`);
+  }
+
+  // Step 2: Get Templates
   async getTemplates(): Promise<TemplatesResponse> {
     return this.get<TemplatesResponse>(PRESENTATION_API_ENDPOINTS.GET_TEMPLATES);
   }
 
-  // Step 3: Generate Content for Slides
-  async generateContent(aiResultId: number): Promise<GenerateOutlineResponse> {
-    const endpoint = PRESENTATION_API_ENDPOINTS.GENERATE_CONTENT.replace('{aiResultId}', aiResultId.toString());
-    return this.post<GenerateOutlineResponse>(endpoint, {});
+  // Step 3: Generate Content (Async - returns job_id, requires outline)
+  async generateContent(request: GenerateContentRequest): Promise<GenerateContentResponse> {
+    return this.post<GenerateContentResponse>(PRESENTATION_API_ENDPOINTS.GENERATE_CONTENT, request);
   }
 
-  // Step 4: Save Presentation Data (JSON-based)
-  async savePresentation(aiResultId: number, presentationData: any): Promise<ApiResponse> {
-    const endpoint = PRESENTATION_API_ENDPOINTS.SAVE_PRESENTATION.replace('{aiResultId}', aiResultId.toString());
-    return this.post<ApiResponse>(endpoint, { presentation_data: presentationData });
+  // Step 4: Export Presentation (Async - returns job_id, requires content)
+  async exportPresentation(request: ExportPresentationRequest): Promise<ExportPresentationResponse> {
+    return this.post<ExportPresentationResponse>(PRESENTATION_API_ENDPOINTS.EXPORT, request);
   }
 
-  // Get Presentation Data for Editing
-  async getPresentationData(aiResultId: number): Promise<ApiResponse> {
-    const endpoint = PRESENTATION_API_ENDPOINTS.GET_PRESENTATION_DATA.replace('{aiResultId}', aiResultId.toString());
-    return this.get<ApiResponse>(endpoint);
-  }
-
-  // Export to PowerPoint (On-demand)
-  async exportToPowerPoint(aiResultId: number, presentationData: any, templateOverrides?: any): Promise<GeneratePowerPointResponse> {
-    const endpoint = PRESENTATION_API_ENDPOINTS.EXPORT_POWERPOINT.replace('{aiResultId}', aiResultId.toString());
-    const requestBody = { presentation_data: presentationData };
-    if (templateOverrides) {
-      Object.assign(requestBody, templateOverrides);
-    }
-    return this.post<GeneratePowerPointResponse>(endpoint, requestBody);
-  }
-
-  // Management APIs
+  // Management APIs - List Presentation Files
   async getPresentations(perPage: number = 15, search?: string): Promise<PresentationsResponse> {
     const params = new URLSearchParams({
       per_page: perPage.toString(),
       ...(search && { search })
     });
-    return this.get<PresentationsResponse>(`${PRESENTATION_API_ENDPOINTS.GET_PRESENTATIONS}?${params}`);
+    return this.get<PresentationsResponse>(`${PRESENTATION_API_ENDPOINTS.LIST_FILES}?${params}`);
   }
 
   async getPresentation(id: number): Promise<PresentationResponse> {
@@ -229,8 +282,77 @@ export class PresentationApiClient extends ApiClient {
   }
 
   async deletePresentation(id: number): Promise<DeletePresentationResponse> {
-    const endpoint = PRESENTATION_API_ENDPOINTS.DELETE_PRESENTATION.replace('{id}', id.toString());
+    // Use the files endpoint for deleting presentation files
+    const endpoint = PRESENTATION_API_ENDPOINTS.DELETE_FILE.replace('{fileId}', id.toString());
     return this.delete<DeletePresentationResponse>(endpoint);
+  }
+
+  // Save edited PPT file
+  async savePresentationFile(fileId: number, request: SavePresentationFileRequest): Promise<SavePresentationFileResponse> {
+    const endpoint = PRESENTATION_API_ENDPOINTS.SAVE_FILE.replace('{fileId}', fileId.toString());
+    const additionalData: Record<string, any> = {};
+    if (request.title) {
+      additionalData.title = request.title;
+    }
+    return this.uploadFile<SavePresentationFileResponse>(endpoint, request.file, undefined, additionalData);
+  }
+
+  // Get presentation file data (for editing)
+  async getPresentationFile(fileId: number): Promise<ApiResponse> {
+    const endpoint = PRESENTATION_API_ENDPOINTS.GET_FILE.replace('{fileId}', fileId.toString());
+    return this.get<ApiResponse>(endpoint);
+  }
+
+  // Get presentation file content (for editing) - NEW ENDPOINT
+  async getPresentationFileContent(fileId: number): Promise<ApiResponse> {
+    const endpoint = PRESENTATION_API_ENDPOINTS.GET_FILE_CONTENT.replace('{fileId}', fileId.toString());
+    return this.get<ApiResponse>(endpoint);
+  }
+
+  // Download presentation file
+  async downloadPresentationFile(fileId: number): Promise<Blob> {
+    const endpoint = PRESENTATION_API_ENDPOINTS.DOWNLOAD_FILE.replace('{fileId}', fileId.toString());
+    
+    // Use the same pattern as ApiClient methods
+    // Use the same base URL as ApiClient
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+    const url = `${API_BASE_URL}${endpoint}`;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+
+    const config: RequestInit = {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/octet-stream',
+        'Origin': 'http://localhost:3000',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      redirect: 'manual',
+    };
+
+    try {
+      const response = await fetch(url, config);
+      
+      // Handle redirect responses
+      if (response.status === 0 || (response.type === 'opaqueredirect' && response.status !== 401 && response.status !== 403)) {
+        throw new Error('Request was redirected. This usually indicates a network or CORS issue.');
+      }
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { message: errorText || `HTTP ${response.status}` };
+        }
+        throw new Error(errorData.message || `Failed to download file: ${response.status}`);
+      }
+
+      return await response.blob();
+    } catch (error) {
+      console.error('Error downloading presentation file:', error);
+      throw error;
+    }
   }
 
   // System Status
@@ -245,14 +367,18 @@ export const presentationApi = new PresentationApiClient();
 // Export API endpoints for reference
 export const PRESENTATION_API_ENDPOINTS = {
   GENERATE_OUTLINE: '/presentations/generate-outline',
-  UPDATE_OUTLINE: '/presentations/{aiResultId}/update-outline',
-  GENERATE_CONTENT: '/presentations/{aiResultId}/generate-content',
-  SAVE_PRESENTATION: '/presentations/{aiResultId}/save',
-  GET_PRESENTATION_DATA: '/presentations/{aiResultId}/data',
-  EXPORT_POWERPOINT: '/presentations/{aiResultId}/export',
+  GENERATE_CONTENT: '/presentations/generate-content',
+  EXPORT: '/presentations/export',
+  GET_JOB_STATUS: '/presentations/status',
+  GET_JOB_RESULT: '/presentations/result',
   GET_TEMPLATES: '/presentations/templates',
   GET_PRESENTATIONS: '/presentations',
   GET_PRESENTATION: '/presentations/{id}',
   DELETE_PRESENTATION: '/presentations/{id}',
-  MICROSERVICE_STATUS: '/presentations/microservice-status',
+  LIST_FILES: '/presentations/files',
+  DELETE_FILE: '/presentations/files/{fileId}',
+  DOWNLOAD_FILE: '/presentations/files/{fileId}/download',
+  SAVE_FILE: '/presentations/files/{fileId}/save',
+  GET_FILE: '/presentations/files/{fileId}',
+  GET_FILE_CONTENT: '/presentations/files/{fileId}/content',
 } as const;

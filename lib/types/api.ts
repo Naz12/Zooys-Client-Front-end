@@ -605,6 +605,8 @@ export interface Flashcard {
   id: number;
   question: string;
   answer: string;
+  front?: string; // Optional: AI Manager returns front/back format
+  back?: string; // Optional: AI Manager returns front/back format
   order_index: number;
 }
 
@@ -667,13 +669,17 @@ export interface FlashcardGenerateResponse {
 }
 
 export interface FlashcardSetsResponse {
-  flashcard_sets: FlashcardSet[];
-  pagination: {
+  data?: FlashcardSet[]; // API returns data array directly
+  flashcard_sets?: FlashcardSet[]; // Alternative format for backward compatibility
+  pagination?: {
     current_page: number;
     last_page: number;
     per_page: number;
     total: number;
   };
+  current_page?: number; // Alternative pagination format
+  per_page?: number;
+  total?: number;
 }
 
 export interface FlashcardSetResponse {

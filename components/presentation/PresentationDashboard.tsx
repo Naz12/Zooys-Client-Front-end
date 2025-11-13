@@ -29,7 +29,9 @@ interface PresentationItem {
   created_at: string;
   updated_at: string;
   tool_type: string;
-  slide_count?: number; // Add slide count field
+  slide_count?: number;
+  file_url?: string;
+  filename?: string;
 }
 
 export function PresentationDashboard() {
@@ -47,35 +49,63 @@ export function PresentationDashboard() {
     try {
       setLoading(true);
       const response = await presentationApi.getPresentations(20);
+      console.log('Presentations API Response:', response);
+      
       if (response.success) {
-        const presentationsWithSlideCount = await Promise.all(
-          response.data.presentations.map(async (presentation) => {
-            try {
-              // Try to get presentation data to count slides
-              const dataResponse = await presentationApi.getPresentationData(presentation.id);
-              if (dataResponse.success && dataResponse.data?.slides) {
-                return {
-                  ...presentation,
-                  slide_count: dataResponse.data.slides.length
-                };
-              }
-            } catch (error) {
-              console.warn(`Could not fetch slide count for presentation ${presentation.id}:`, error);
+        // Handle different response structures
+        let files: any[] = [];
+        
+        // Check if data is an array
+        if (Array.isArray(response.data)) {
+          files = response.data;
+        }
+        // Check if data is nested or has a different structure
+        else if (response.data && typeof response.data === 'object') {
+          // Check if there's a files array
+          if (Array.isArray((response.data as any).files)) {
+            files = (response.data as any).files;
+          }
+          // Check if data itself contains an array property
+          else if (Array.isArray((response.data as any).data)) {
+            files = (response.data as any).data;
+          }
+          // If data is an object with array-like structure, try to convert
+          else if (Object.keys(response.data).length > 0) {
+            // Check if it's an object with numeric keys (array-like)
+            const keys = Object.keys(response.data);
+            if (keys.every(key => !isNaN(Number(key)))) {
+              files = Object.values(response.data);
             }
-            // Fallback: return presentation without slide count
-            return {
-              ...presentation,
-              slide_count: 0
-            };
-          })
-        );
-        setPresentations(presentationsWithSlideCount);
+          }
+        }
+        
+        if (files.length > 0) {
+          // Map files to presentation items format
+          const presentationsList = files.map((file) => ({
+            id: file.id,
+            title: file.title,
+            description: `Template: ${file.template || 'N/A'} | ${file.human_file_size || 'Unknown size'}`,
+            status: 'completed', // Files are already completed
+            created_at: file.created_at,
+            updated_at: file.updated_at,
+            tool_type: 'presentation',
+            slide_count: file.slides_count || 0,
+            file_url: file.file_url,
+            filename: file.filename
+          }));
+          setPresentations(presentationsList);
+        } else {
+          console.warn('No files found in response:', response);
+          setPresentations([]); // Set empty array instead of showing error
+        }
       } else {
-        showError('Failed to load presentations');
+        console.warn('Response not successful:', response);
+        setPresentations([]);
       }
     } catch (error) {
       console.error('Error fetching presentations:', error);
       showError('Failed to load presentations');
+      setPresentations([]);
     } finally {
       setLoading(false);
     }
@@ -86,7 +116,43 @@ export function PresentationDashboard() {
   };
 
   const handleEditPresentation = (id: number) => {
+    // Navigate to editor with file_id
     router.push(`/presentation/editor/${id}`);
+  };
+
+  const handleDownloadPresentation = async (id: number, title: string, fileUrl?: string) => {
+    try {
+      // If we have a file_url, try to use it first
+      if (fileUrl) {
+        // Make URL absolute if needed
+        const absoluteUrl = fileUrl.startsWith('http') 
+          ? fileUrl 
+          : `http://localhost:8000${fileUrl}`;
+        
+        // Try direct download
+        window.open(absoluteUrl, '_blank');
+        showSuccess('Download started!');
+        return;
+      }
+
+      // Otherwise, use the download endpoint
+      const blob = await presentationApi.downloadPresentationFile(id);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${title.replace(/[^a-z0-9]/gi, '_')}.pptx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      showSuccess('Presentation downloaded successfully!');
+    } catch (error) {
+      console.error('Error downloading presentation:', error);
+      showError('Failed to download presentation');
+    }
   };
 
   const handleDeletePresentation = (id: number, title: string) => {
@@ -246,9 +312,9 @@ export function PresentationDashboard() {
               {presentations.map((presentation) => (
                 <div
                   key={presentation.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                  className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors"
                 >
-                  <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-4 flex-1 min-w-0">
                     <div className="p-2 bg-blue-100 rounded-lg">
                       <Presentation className="h-5 w-5 text-blue-600" />
                     </div>
@@ -275,26 +341,34 @@ export function PresentationDashboard() {
                     </div>
                   </div>
                   
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 flex-shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDownloadPresentation(presentation.id, presentation.title, presentation.file_url)}
+                      title="Download presentation"
+                    >
+                      <Download className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Download</span>
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleEditPresentation(presentation.id)}
+                      title="Edit presentation"
                     >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit
+                      <Edit className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Edit</span>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleDeletePresentation(presentation.id, presentation.title)}
                       className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                      title="Delete presentation"
                     >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
-                    </Button>
-                    <Button variant="ghost" size="sm">
-                      <MoreVertical className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Delete</span>
                     </Button>
                   </div>
                 </div>

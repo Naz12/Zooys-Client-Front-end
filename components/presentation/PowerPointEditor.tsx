@@ -32,14 +32,13 @@ import {
 import { useNotifications } from '@/lib/notifications';
 import { PresentationOutline, Slide } from '@/lib/presentation-workflow-context';
 import { presentationApi } from '@/lib/presentation-api-client';
-import PptxGenJS from 'pptxgenjs';
 import { debounce } from 'lodash';
 
 interface PowerPointEditorProps {
-  presentationId: number;
+  fileId: number;
   initialOutline: PresentationOutline;
   selectedTemplate?: string;
-  onSave?: (editedPresentation: any) => void;
+  onSave?: (content: { title: string; slides: Array<{ title: string; content: string; slide_type: string; order: number }> }) => void;
   onDownload?: () => void;
 }
 
@@ -69,7 +68,7 @@ interface EditorElement {
 }
 
 const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
-  presentationId,
+  fileId,
   initialOutline,
   selectedTemplate = 'corporate_blue',
   onSave,
@@ -132,20 +131,14 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
   const currentSlide = slides[currentSlideIndex];
 
   // Auto-save functionality
+  // Note: Auto-save now just updates local state. Use Save button to save PPT file to backend.
   const autoSave = useCallback(
     debounce(async (presentationData: any) => {
-      if (!presentationId) return;
-      
-      try {
-        const response = await presentationApi.savePresentation(presentationId, presentationData);
-        if (response.success) {
-          setLastSaved(new Date());
-        }
-      } catch (error) {
-        console.error('Auto-save failed:', error);
-      }
+      // Auto-save is now handled by the save button which generates and saves the PPT file
+      // This function is kept for backward compatibility but doesn't save to backend
+      console.log('Auto-save triggered (use Save button to save to backend):', presentationData);
     }, 2000),
-    [presentationId]
+    [fileId]
   );
 
   const addSlide = () => {
@@ -302,59 +295,109 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
   const generatePowerPoint = async () => {
     setIsGenerating(true);
     try {
-      // Convert edited slides back to the format expected by the backend
-      const editedSlides = slides.map(slide => {
-        // Extract title and content from the first two text elements
-        const titleElement = slide.elements.find(el => el.type === 'text' && el.style?.bold);
-        const contentElement = slide.elements.find(el => el.type === 'text' && !el.style?.bold);
-        
-        return {
-          title: titleElement?.content || slide.title,
-          content: contentElement?.content || slide.content,
-          slide_type: slide.slide_type,
-          order: slide.order
-        };
-      });
+      // Ensure we're in the browser
+      if (typeof window === 'undefined') {
+        throw new Error('PowerPoint generation is only available in the browser');
+      }
+      
+      // Dynamically import PptxGenJS to avoid Node.js module issues in browser
+      let PptxGenJS;
+      try {
+        const pptxModule = await import('pptxgenjs');
+        PptxGenJS = pptxModule.default || pptxModule;
+      } catch (importError) {
+        console.error('Failed to import pptxgenjs:', importError);
+        throw new Error('Failed to load PowerPoint library. Please refresh the page and try again.');
+      }
+      
+      if (!PptxGenJS) {
+        throw new Error('PowerPoint library not available');
+      }
+      
+      // Create a new PowerPoint presentation using PptxGenJS
+      const pptx = new PptxGenJS();
+      pptx.layout = 'LAYOUT_WIDE';
+      pptx.author = 'Note GPT Dashboard';
+      pptx.company = 'Note GPT';
+      pptx.title = presentationTitle;
 
-      const presentationData = {
-        title: presentationTitle, // Use edited title
-        slides: editedSlides,
-        template: selectedTemplate,
-        color_scheme: selectedTemplate === 'corporate_blue' ? 'blue' : 
-                     selectedTemplate === 'modern_white' ? 'white' :
-                     selectedTemplate === 'creative_colorful' ? 'colorful' :
-                     selectedTemplate === 'minimalist_gray' ? 'gray' :
-                     selectedTemplate === 'academic_formal' ? 'dark' :
-                     selectedTemplate === 'tech_modern' ? 'teal' :
-                     selectedTemplate === 'elegant_purple' ? 'purple' :
-                     selectedTemplate === 'professional_green' ? 'green' : 'blue',
-        font_style: 'modern'
-      };
-      
-      const response = await presentationApi.exportToPowerPoint(presentationId, presentationData);
-      
-      if (response.success) {
-        // Make download URL absolute by prepending backend server URL
-        let absoluteDownloadUrl = response.data.download_url.startsWith('http') 
-          ? response.data.download_url 
-          : `http://localhost:8000${response.data.download_url}`;
+      // Add slides
+      for (const slide of slides) {
+        const pptxSlide = pptx.addSlide();
         
-        // Add cache-busting parameter to ensure fresh download
-        const separator = absoluteDownloadUrl.includes('?') ? '&' : '?';
-        absoluteDownloadUrl += `${separator}t=${Date.now()}`;
-        
-        // Store the download URL for potential reuse
-        setDownloadUrl(absoluteDownloadUrl);
-        
-        // Trigger download
-        window.open(absoluteDownloadUrl, '_blank');
-        showSuccess('PowerPoint file generated and downloaded successfully!');
-        
-        if (onDownload) {
-          onDownload();
+        // Add title
+        if (slide.title) {
+          pptxSlide.addText(slide.title, {
+            x: 0.5,
+            y: 0.5,
+            w: 9,
+            h: 1,
+            fontSize: 32,
+            bold: true,
+            align: 'center',
+            color: '363636'
+          });
         }
-      } else {
-        throw new Error('Failed to generate PowerPoint');
+
+        // Add content elements
+        let yPos = 2;
+        for (const element of slide.elements) {
+          if (element.type === 'text') {
+            pptxSlide.addText(element.content, {
+              x: element.x / 100 * 10,
+              y: yPos,
+              w: (element.width / 100 * 10),
+              h: (element.height / 100 * 10),
+              fontSize: element.style?.fontSize || 18,
+              bold: element.style?.bold || false,
+              italic: element.style?.italic || false,
+              underline: element.style?.underline || false,
+              align: element.style?.align || 'left',
+              color: element.style?.color || '000000'
+            });
+            yPos += (element.height / 100 * 10) + 0.3;
+          } else if (element.type === 'image' && element.content.startsWith('data:')) {
+            // Handle base64 images
+            try {
+              const base64Data = element.content.split(',')[1];
+              pptxSlide.addImage({
+                data: base64Data,
+                x: element.x / 100 * 10,
+                y: yPos,
+                w: (element.width / 100 * 10),
+                h: (element.height / 100 * 10)
+              });
+              yPos += (element.height / 100 * 10) + 0.3;
+            } catch (imgError) {
+              console.error('Error adding image:', imgError);
+            }
+          }
+        }
+      }
+
+      // Generate the PPTX file as blob
+      const blob = await pptx.write({ outputType: 'blob' });
+      
+      // Convert blob to File
+      const fileName = `${presentationTitle.replace(/[^a-z0-9]/gi, '_')}.pptx`;
+      const pptFile = new File([blob], fileName, { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+      
+      // Store download URL for direct download
+      const downloadUrl = URL.createObjectURL(blob);
+      setDownloadUrl(downloadUrl);
+      
+      // Trigger download
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showSuccess('PowerPoint file generated and downloaded successfully!');
+      
+      if (onDownload) {
+        onDownload();
       }
     } catch (error) {
       console.error('Error generating PowerPoint:', error);
@@ -368,47 +411,108 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
     try {
       setIsSaving(true);
       
-      const presentationData = {
+      // Ensure we're in the browser
+      if (typeof window === 'undefined') {
+        throw new Error('PowerPoint generation is only available in the browser');
+      }
+      
+      // Dynamically import PptxGenJS to avoid Node.js module issues in browser
+      let PptxGenJS;
+      try {
+        const pptxModule = await import('pptxgenjs');
+        PptxGenJS = pptxModule.default || pptxModule;
+      } catch (importError) {
+        console.error('Failed to import pptxgenjs:', importError);
+        throw new Error('Failed to load PowerPoint library. Please refresh the page and try again.');
+      }
+      
+      if (!PptxGenJS) {
+        throw new Error('PowerPoint library not available');
+      }
+      
+      // Generate PPT file first
+      const pptx = new PptxGenJS();
+      pptx.layout = 'LAYOUT_WIDE';
+      pptx.author = 'Note GPT Dashboard';
+      pptx.company = 'Note GPT';
+      pptx.title = presentationTitle;
+
+      // Add slides
+      for (const slide of slides) {
+        const pptxSlide = pptx.addSlide();
+        
+        // Add title
+        if (slide.title) {
+          pptxSlide.addText(slide.title, {
+            x: 0.5,
+            y: 0.5,
+            w: 9,
+            h: 1,
+            fontSize: 32,
+            bold: true,
+            align: 'center',
+            color: '363636'
+          });
+        }
+
+        // Add content elements
+        let yPos = 2;
+        for (const element of slide.elements) {
+          if (element.type === 'text') {
+            pptxSlide.addText(element.content, {
+              x: element.x / 100 * 10,
+              y: yPos,
+              w: (element.width / 100 * 10),
+              h: (element.height / 100 * 10),
+              fontSize: element.style?.fontSize || 18,
+              bold: element.style?.bold || false,
+              italic: element.style?.italic || false,
+              underline: element.style?.underline || false,
+              align: element.style?.align || 'left',
+              color: element.style?.color || '000000'
+            });
+            yPos += (element.height / 100 * 10) + 0.3;
+          } else if (element.type === 'image' && element.content.startsWith('data:')) {
+            try {
+              const base64Data = element.content.split(',')[1];
+              pptxSlide.addImage({
+                data: base64Data,
+                x: element.x / 100 * 10,
+                y: yPos,
+                w: (element.width / 100 * 10),
+                h: (element.height / 100 * 10)
+              });
+              yPos += (element.height / 100 * 10) + 0.3;
+            } catch (imgError) {
+              console.error('Error adding image:', imgError);
+            }
+          }
+        }
+      }
+
+      // Convert editor slides to content format for backend
+      const contentToSave = {
         title: presentationTitle,
-        slides: slides,
-        template: selectedTemplate,
-        color_scheme: selectedTemplate === 'corporate_blue' ? 'blue' : 
-                     selectedTemplate === 'modern_white' ? 'white' :
-                     selectedTemplate === 'creative_colorful' ? 'colorful' :
-                     selectedTemplate === 'minimalist_gray' ? 'gray' :
-                     selectedTemplate === 'academic_formal' ? 'dark' :
-                     selectedTemplate === 'tech_modern' ? 'teal' :
-                     selectedTemplate === 'elegant_purple' ? 'purple' :
-                     selectedTemplate === 'professional_green' ? 'green' : 'blue',
-        font_style: 'modern'
+        slides: slides.map((slide) => {
+          // Extract title and content from elements
+          const titleElement = slide.elements.find(el => el.type === 'text' && el.style?.bold);
+          const contentElement = slide.elements.find(el => el.type === 'text' && !el.style?.bold);
+          
+          return {
+            title: titleElement?.content || slide.title,
+            content: contentElement?.content || slide.content || '',
+            slide_type: slide.slide_type || 'content',
+            order: slide.order || slides.indexOf(slide) + 1
+          };
+        })
       };
       
-      // Debug: Log what we're saving
-      console.log('=== SAVING PRESENTATION DEBUG ===');
-      console.log('Presentation ID:', presentationId);
-      console.log('Presentation Data:', JSON.stringify(presentationData, null, 2));
-      console.log('Slides being saved:', slides);
-      console.log('================================');
-      
-      const response = await presentationApi.savePresentation(presentationId, presentationData);
-      
-      // Debug: Log the save response
-      console.log('=== SAVE RESPONSE DEBUG ===');
-      console.log('Save response:', response);
-      console.log('===========================');
-      
-      if (response.success) {
+      // Save to backend (will re-export via API)
+      if (onSave) {
+        await onSave(contentToSave);
         setLastSaved(new Date());
-        showSuccess('Presentation saved successfully!');
-        
-        // Clear any cached download URL to force regeneration with updated content
-        setDownloadUrl(null);
-        
-        if (onSave) {
-          onSave({ slides, presentationId });
-        }
       } else {
-        throw new Error('Failed to save presentation');
+        throw new Error('Save handler not available');
       }
     } catch (error) {
       console.error('Error saving presentation:', error);

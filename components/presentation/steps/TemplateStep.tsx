@@ -70,13 +70,44 @@ export function TemplateStep() {
     setIsLoading(true);
     try {
       const response = await presentationApi.getTemplates();
-      if (response.success) {
+      console.log('Templates API Response:', response);
+      
+      // Handle different response structures
+      let templates: Record<string, any> | null = null;
+      
+      // Check if templates are directly on response
+      if (response.templates) {
+        templates = response.templates;
+      } 
+      // Check if templates are nested in data
+      else if ((response as any).data?.templates) {
+        templates = (response as any).data.templates;
+      }
+      // Check if response itself is the templates object (no wrapper)
+      else if (typeof response === 'object' && !('success' in response) && Object.keys(response).length > 0) {
+        // Response might be the templates object directly
+        templates = response as any;
+      }
+      // Check if response has success but templates might be at root level
+      else if (response.success && typeof response === 'object') {
+        // Try to find templates anywhere in the response
+        const responseAny = response as any;
+        if (responseAny.templates) {
+          templates = responseAny.templates;
+        } else if (responseAny.data?.templates) {
+          templates = responseAny.data.templates;
+        }
+      }
+      
+      if (templates && Object.keys(templates).length > 0) {
+        console.log('Dispatching templates:', templates);
         dispatch({
           type: 'SET_TEMPLATE_DATA',
-          payload: response.data.templates
+          payload: templates
         });
       } else {
-        throw new Error('Failed to load templates');
+        console.warn('No templates found in response:', response);
+        throw new Error('No templates available from the server');
       }
     } catch (error) {
       console.error('Error loading templates:', error);

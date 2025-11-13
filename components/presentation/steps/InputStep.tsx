@@ -28,6 +28,54 @@ import { useWorkflow } from '@/lib/presentation-workflow-context';
 import { presentationApi, GenerateOutlineRequest } from '@/lib/presentation-api-client';
 import { useNotifications } from '@/lib/notifications';
 
+// Helper function to poll job status
+async function pollJobStatus(
+  jobId: string,
+  onProgress?: (progress: number, stage?: string) => void,
+  maxAttempts: number = 60,
+  interval: number = 2500
+): Promise<{ success: boolean; result?: any; error?: string }> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const statusResponse = await presentationApi.getJobStatus(jobId);
+      
+      if (!statusResponse.success) {
+        return { success: false, error: statusResponse.error || 'Failed to get job status' };
+      }
+
+      const progress = statusResponse.progress || 0;
+      const stage = statusResponse.stage || statusResponse.stage_message;
+      
+      if (onProgress) {
+        onProgress(progress, stage);
+      }
+
+      if (statusResponse.status === 'completed') {
+        // Get the result
+        const resultResponse = await presentationApi.getJobResult(jobId);
+        if (resultResponse.success && resultResponse.result) {
+          return { success: true, result: resultResponse.result };
+        } else {
+          return { success: false, error: resultResponse.error || 'Failed to get job result' };
+        }
+      } else if (statusResponse.status === 'failed') {
+        return { success: false, error: statusResponse.error || 'Job failed' };
+      }
+
+      // Wait before next poll
+      await new Promise(resolve => setTimeout(resolve, interval));
+    } catch (error) {
+      console.error(`Poll attempt ${attempt + 1} failed:`, error);
+      if (attempt === maxAttempts - 1) {
+        return { success: false, error: 'Polling failed' };
+      }
+      await new Promise(resolve => setTimeout(resolve, interval));
+    }
+  }
+
+  return { success: false, error: 'Job timeout' };
+}
+
 const quickStartExamples = [
   {
     title: "Business Pitch",
@@ -157,26 +205,43 @@ export function InputStep() {
         language: state.inputData.language as 'English' | 'Spanish' | 'French' | 'German' | 'Italian' | 'Portuguese' | 'Chinese' | 'Japanese',
         tone: state.inputData.tone as 'Professional' | 'Casual' | 'Academic' | 'Creative' | 'Formal',
         length: state.inputData.length as 'Short' | 'Medium' | 'Long',
-        model: state.inputData.model as 'Basic Model' | 'Advanced Model' | 'Premium Model',
         file: state.inputData.file || undefined,
         url: state.inputData.url || undefined,
         youtube_url: state.inputData.youtubeUrl || undefined,
       };
 
+      // Step 1: Generate outline (returns job_id)
       const response = await presentationApi.generateOutline(request);
       
-      if (response.success) {
-        dispatch({
-          type: 'SET_OUTLINE',
-          payload: {
-            outline: response.data.outline,
-            aiResultId: response.data.ai_result_id
-          }
-        });
-        showSuccess('Outline generated successfully!');
-      } else {
-        throw new Error('Failed to generate outline');
+      if (!response.success || !response.job_id) {
+        throw new Error('Failed to start outline generation');
       }
+
+      showSuccess('Outline generation started! Polling for results...');
+
+      // Step 2: Poll for job status and result
+      const pollResult = await pollJobStatus(
+        response.job_id,
+        (progress, stage) => {
+          // Update progress if needed
+          console.log(`Outline generation progress: ${progress}% - ${stage}`);
+        }
+      );
+
+      if (!pollResult.success || !pollResult.result?.outline) {
+        throw new Error(pollResult.error || 'Failed to generate outline');
+      }
+
+      // Step 3: Set the outline in state
+      dispatch({
+        type: 'SET_OUTLINE',
+        payload: {
+          outline: pollResult.result.outline,
+          jobId: response.job_id
+        }
+      });
+      
+      showSuccess('Outline generated successfully!');
     } catch (error) {
       console.error('Error generating outline:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate outline';
@@ -324,7 +389,7 @@ export function InputStep() {
       </div>
 
       {/* Configuration Options */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="space-y-2">
           <Label htmlFor="language">Language</Label>
           <Select
@@ -388,25 +453,6 @@ export function InputStep() {
               <SelectItem value="Short">Short (5-10 slides)</SelectItem>
               <SelectItem value="Medium">Medium (10-20 slides)</SelectItem>
               <SelectItem value="Long">Long (20+ slides)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="model">AI Model</Label>
-          <Select
-            value={state.inputData.model}
-            onValueChange={(value) => dispatch({
-              type: 'SET_INPUT_DATA',
-              payload: { model: value }
-            })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-              <SelectItem value="gpt-4">GPT-4</SelectItem>
             </SelectContent>
           </Select>
         </div>

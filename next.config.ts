@@ -93,12 +93,48 @@ const nextConfig: NextConfig = {
 
   // Webpack configuration
   webpack: (config, { dev, isServer }) => {
-    // Custom webpack modifications can be added here if needed
+    // Handle Node.js modules for client-side builds
+    if (!isServer) {
+      // Ignore Node.js built-in modules in client-side bundle
+      // This prevents errors when libraries try to use Node.js modules in the browser
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        crypto: false,
+        stream: false,
+        buffer: false,
+        util: false,
+        os: false,
+        net: false,
+        tls: false,
+        child_process: false,
+        'node:fs': false,
+        'node:path': false,
+        'node:crypto': false,
+        'node:stream': false,
+        'node:util': false,
+        'node:os': false,
+        'node:net': false,
+        'node:tls': false,
+        'node:child_process': false,
+      };
+      
+      // Use webpack's IgnorePlugin to ignore node:fs and related imports
+      const webpack = require('webpack');
+      config.plugins = config.plugins || [];
+      config.plugins.push(
+        new webpack.IgnorePlugin({
+          resourceRegExp: /^node:/,
+        })
+      );
+    }
+    
     return config;
   },
 
   // Server external packages
-  serverExternalPackages: ['axios'],
+  serverExternalPackages: ['axios', 'pptxgenjs'],
 
   // Experimental features
   experimental: {

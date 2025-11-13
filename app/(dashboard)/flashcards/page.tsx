@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { 
   BookOpen, 
   Plus, 
@@ -33,6 +34,10 @@ interface FlashcardDisplayProps {
 }
 
 function FlashcardDisplay({ flashcard, isFlipped, onFlip }: FlashcardDisplayProps) {
+  // Handle both question/answer and front/back formats (backend returns both)
+  const question = flashcard.question || flashcard.front || '';
+  const answer = flashcard.answer || flashcard.back || '';
+  
   return (
     <div 
       className="w-full h-64 cursor-pointer" 
@@ -53,7 +58,7 @@ function FlashcardDisplay({ flashcard, isFlipped, onFlip }: FlashcardDisplayProp
         >
           <div className="text-center">
             <h3 className="text-lg font-semibold mb-4">Question</h3>
-            <p className="text-sm leading-relaxed">{flashcard.question}</p>
+            <p className="text-sm leading-relaxed">{question}</p>
           </div>
           <div className="absolute bottom-4 right-4 text-xs opacity-70">
             Click to reveal answer
@@ -70,7 +75,7 @@ function FlashcardDisplay({ flashcard, isFlipped, onFlip }: FlashcardDisplayProp
         >
           <div className="text-center">
             <h3 className="text-lg font-semibold mb-4">Answer</h3>
-            <p className="text-sm leading-relaxed">{flashcard.answer}</p>
+            <p className="text-sm leading-relaxed">{answer}</p>
           </div>
           <div className="absolute bottom-4 right-4 text-xs opacity-70">
             Click to see question
@@ -103,6 +108,11 @@ export default function FlashcardsPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
+  const [pollProgress, setPollProgress] = useState(0);
+  const [pollStatus, setPollStatus] = useState<string>("");
+  const [pollStage, setPollStage] = useState<string>("");
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Helper function to highlight search terms
   const highlightSearchTerm = (text: string, searchTerm: string) => {
@@ -126,7 +136,9 @@ export default function FlashcardsPage() {
       // Only pass search term if it's meaningful (not empty or undefined)
       const searchParam = search && search.trim().length > 0 ? search : undefined;
       const response = await flashcardApi.getSets(1, 15, searchParam);
-      setFlashcardSets(response.flashcard_sets);
+      // Handle both response formats: { data: [...] } or { flashcard_sets: [...] }
+      const sets = (response as any).data || response.flashcard_sets || [];
+      setFlashcardSets(sets);
     } catch (error) {
       console.error('Failed to load flashcard sets:', error);
       
@@ -169,6 +181,129 @@ export default function FlashcardsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, hasSearched]); // Intentionally exclude loadFlashcardSets to prevent infinite loop
 
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
+
+  const startPolling = async (
+    jobId: string,
+    inputType: 'text' | 'file' | 'url' | 'youtube',
+    pollUrl?: string,
+    resultUrl?: string
+  ) => {
+    setIsPolling(true);
+    setPollProgress(0);
+    setPollStatus("pending");
+    setPollStage("");
+
+    const poll = async () => {
+      try {
+        let statusResponse: any;
+
+        if (pollUrl) {
+          statusResponse = await flashcardApi.getJobStatusByUrl(pollUrl);
+        } else {
+          statusResponse = await flashcardApi.getJobStatus(jobId, inputType);
+        }
+
+        // Status response structure: 
+        // Success: { job_id, tool_type, input_type, status, progress, stage, error, ... }
+        // Failed: { success: false, job_id, tool_type, input_type, status: "failed", error, ... }
+        // BaseApiClient.get() already returns response.data, so statusResponse is the direct object
+        // Handle both wrapped and direct response structures for safety
+        const statusData = (statusResponse as any).data || statusResponse;
+        const currentStatus = statusData.status || statusResponse.status;
+        const currentProgress = statusData.progress ?? statusResponse.progress ?? 0;
+        const currentStage = statusData.stage || statusResponse.stage || "";
+
+        // Debug logging
+        console.log('Poll status:', {
+          currentStatus,
+          currentProgress,
+          currentStage,
+          statusResponse: statusResponse
+        });
+
+        setPollStatus(currentStatus);
+        setPollProgress(currentProgress);
+        setPollStage(currentStage);
+
+        if (currentStatus === "completed") {
+          console.log('Job completed, fetching result...');
+          // Get the result
+          let resultResponse: any;
+          if (resultUrl) {
+            resultResponse = await flashcardApi.getJobResultByUrl(resultUrl);
+          } else {
+            resultResponse = await flashcardApi.getJobResult(jobId, inputType);
+          }
+
+          console.log('Result response:', resultResponse);
+
+          // Result response structure: { success, job_id, tool_type, input_type, data: { flashcards, flashcard_set, ai_result } }
+          // BaseApiClient.get() already returns response.data, so resultResponse is the direct object
+          // Handle both wrapped and direct response structures for safety
+          const resultData = (resultResponse as any).data || resultResponse;
+          
+          console.log('Result data:', resultData);
+          
+          // resultData is the data object containing flashcards, flashcard_set, and ai_result
+          if (resultData?.flashcard_set?.id) {
+            showSuccess("Success", `Generated ${resultData.flashcards?.length || 0} flashcards successfully!`);
+            setInput("");
+            setSelectedFile(null);
+            setIsCreating(false);
+            loadFlashcardSets(); // Refresh the list
+          } else {
+            console.error('Missing flashcard_set in result:', resultData);
+            showError("Error", "Failed to get flashcard set from result");
+          }
+
+          setIsPolling(false);
+          setIsGenerating(false);
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+        } else if (currentStatus === "failed") {
+          console.log('Job failed:', statusData.error || statusResponse.error);
+          // Failed status can have success: false wrapper
+          // Extract error from statusData or statusResponse
+          const errorMessage = statusData.error || statusResponse.error || "Job failed";
+          showError("Error", errorMessage);
+          setIsPolling(false);
+          setIsGenerating(false);
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+        } else {
+          // Still processing - continue polling
+          console.log(`Job ${currentStatus} - Progress: ${currentProgress}% - Stage: ${currentStage}`);
+        }
+      } catch (error) {
+        console.error("Polling error:", error);
+        const errorMessage = error instanceof Error ? error.message : "Polling failed";
+        showError("Error", errorMessage);
+        setIsPolling(false);
+        setIsGenerating(false);
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+      }
+    };
+
+    // Poll immediately, then every 2.5 seconds
+    poll();
+    pollingIntervalRef.current = setInterval(poll, 2500);
+  };
+
   const handleCreateFlashcards = async () => {
     // Validate input based on type
     if (inputType === 'file') {
@@ -179,14 +314,16 @@ export default function FlashcardsPage() {
     } else {
       if (!input.trim()) {
         showError("Error", "Please enter content to generate flashcards from");
-      return;
-    }
-
-      // Check minimum word count (5 words) for text input
-      const wordCount = input.trim().split(/\s+/).length;
-      if (wordCount < 5) {
-        showError("Error", `Please provide at least 5 words. You currently have ${wordCount} words.`);
         return;
+      }
+
+      // Check minimum word count (5 words) for text input (not for URL/YouTube)
+      if (inputType === 'text') {
+        const wordCount = input.trim().split(/\s+/).length;
+        if (wordCount < 5) {
+          showError("Error", `Please provide at least 5 words. You currently have ${wordCount} words.`);
+          return;
+        }
       }
     }
 
@@ -196,29 +333,46 @@ export default function FlashcardsPage() {
     }
 
     setIsGenerating(true);
+    setPollProgress(0);
+    setPollStatus("");
+    setPollStage("");
+
     try {
       let response;
+      let fileId: string | undefined;
       
       if (inputType === 'file' && selectedFile) {
         // Handle file upload and generation
         setIsUploading(true);
         try {
           // First upload the file
-          await fileApi.upload(selectedFile, {
-            tool_type: 'flashcards',
-            description: `Flashcard generation from ${selectedFile.name}`
+          const uploadResponse = await fileApi.upload({
+            file: selectedFile,
+            metadata: {
+              tool_type: 'flashcards',
+              description: `Flashcard generation from ${selectedFile.name}`
+            }
           });
+          
+          // Extract file_id from response
+          const uploadData = (uploadResponse as any).data || uploadResponse;
+          fileId = uploadData.file_upload?.id?.toString() || 
+                   uploadData.id?.toString() || 
+                   uploadData.data?.id?.toString();
+          
+          if (!fileId) {
+            throw new Error("Failed to get file ID from upload response");
+          }
           
           showSuccess("Success", `File uploaded successfully! Generating flashcards...`);
           
           // Then generate flashcards from the file
           response = await flashcardApi.generate({
-            input: input.trim() || `Generate flashcards from ${selectedFile.name}`,
+            file_id: fileId,
             input_type: 'file',
             count: Math.min(count, 40),
             difficulty,
-            style,
-            file: selectedFile
+            style
           });
         } finally {
           setIsUploading(false);
@@ -237,11 +391,18 @@ export default function FlashcardsPage() {
         response = await flashcardApi.generate(requestData);
       }
 
-      showSuccess("Success", `Generated ${response.flashcards.length} flashcards successfully!`);
-      setInput("");
-      setSelectedFile(null);
-      setIsCreating(false);
-      loadFlashcardSets(); // Refresh the list
+      // Handle async response with job_id
+      const responseData = (response as any).data || response;
+      const jobId = responseData.job_id || response.job_id;
+      const pollUrl = responseData.poll_url || response.poll_url;
+      const resultUrl = responseData.result_url || response.result_url;
+
+      if (jobId) {
+        showSuccess("Success", "Flashcard generation started. Please wait...");
+        startPolling(jobId, inputType, pollUrl, resultUrl);
+      } else {
+        throw new Error("No job ID received from server");
+      }
     } catch (error: unknown) {
       console.error('Failed to generate flashcards:', error);
       console.error('Error details:', {
@@ -290,7 +451,7 @@ export default function FlashcardsPage() {
 
   const handleDeleteSet = async (setId: number) => {
     try {
-      await flashcardApi.deleteSet(setId);
+      await flashcardApi.deleteFlashcardSet(setId.toString());
       showSuccess("Success", "Flashcard set deleted successfully");
       loadFlashcardSets();
       if (currentSet?.id === setId) {
@@ -649,16 +810,17 @@ export default function FlashcardsPage() {
               onClick={handleCreateFlashcards}
               disabled={
                 isGenerating || 
+                isPolling ||
                 (inputType === 'file' ? !selectedFile : !input.trim()) || 
                 (inputType === 'text' && input.trim().split(/\s+/).length < 5)
               }
               className="w-full font-semibold disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
               size="lg"
             >
-              {isGenerating ? (
+              {isGenerating || isPolling ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
-                  {isUploading ? 'Uploading File...' : 'Generating Flashcards...'}
+                  {isUploading ? 'Uploading File...' : isPolling ? 'Generating Flashcards...' : 'Starting...'}
                       </>
                     ) : (
                       <>
@@ -667,6 +829,24 @@ export default function FlashcardsPage() {
                       </>
                     )}
                   </Button>
+
+                  {/* Progress Indicator */}
+                  {(isPolling || isGenerating) && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">
+                          {pollStage ? `Stage: ${pollStage}` : "Processing..."}
+                        </span>
+                        <span className="text-muted-foreground">{Math.round(pollProgress)}%</span>
+                      </div>
+                      <Progress value={pollProgress} className="h-2" />
+                      {pollStatus && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="capitalize">{pollStatus}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
             {/* Suggested Prompts */}
             <div className="space-y-2">

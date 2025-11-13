@@ -13,171 +13,260 @@ import { useNotifications } from '@/lib/notifications';
 export default function PresentationEditorPage() {
   const params = useParams();
   const router = useRouter();
-  const { showError } = useNotifications();
+  const { showError, showSuccess } = useNotifications();
   const [outline, setOutline] = useState<PresentationOutline | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
-  const maxRetries = 3;
+  const [fileId, setFileId] = useState<number | null>(null);
+  const [fileMetadata, setFileMetadata] = useState<{
+    template?: string;
+    color_scheme?: string;
+    font_style?: string;
+  } | null>(null);
 
-  const presentationId = params.id as string;
+  const fileIdParam = params.id as string;
 
   useEffect(() => {
-    const fetchPresentationData = async () => {
-      // Prevent infinite loops
-      if (retryCount >= maxRetries) {
-        console.log('Max retries reached, using fallback data');
-        setLoading(false);
-        return;
-      }
-
+    const fetchPresentationFile = async () => {
       try {
         setLoading(true);
+        const id = parseInt(fileIdParam);
         
-        // Backend agent confirmed the /data endpoint is working
-        console.log('Attempting to load presentation data from API');
+        if (isNaN(id)) {
+          throw new Error('Invalid file ID');
+        }
         
-        if (true) {
-          // Try to load from API first
-          const response = await presentationApi.getPresentationData(parseInt(presentationId));
+        setFileId(id);
+        console.log('Loading presentation file content with ID:', id);
+        
+        // Use the new content endpoint to get editable content
+        try {
+          const response = await presentationApi.getPresentationFileContent(id);
+          console.log('File content response:', response);
           
-          if (response.success && response.data) {
-            // Debug: Log the actual response structure
-            console.log('=== PRESENTATION DATA DEBUG ===');
-            console.log('Full response:', JSON.stringify(response, null, 2));
-            console.log('Response data:', response.data);
-            console.log('Response data keys:', Object.keys(response.data || {}));
+          // The backend returns content directly in the response:
+          // { success: true, content: { title, slides: [...] }, file_id, title, template, ... }
+          // OR wrapped in response.data: { success: true, data: { content: {...}, file_id, ... } }
+          const responseData = (response as any).data || response;
+          
+          // Check if response is successful and has content
+          if (response.success === true && responseData.content) {
+            // The backend returns content in this format:
+            // {
+            //   content: { title, slides: [{ slide_number, header, subheaders, slide_type, content }] },
+            //   file_id, title, template, color_scheme, font_style
+            // }
+            const backendContent = responseData.content;
             
-            // Try different data access patterns
-            const directData = response.data;
-            const presentationData = response.data.presentation_data;
-            const resultData = response.data.result_data;
+            if (!backendContent || !backendContent.slides) {
+              throw new Error('Content data not available for this file');
+            }
             
-            console.log('Direct data:', directData);
-            console.log('Presentation data:', presentationData);
-            console.log('Result data:', resultData);
-            console.log('================================');
+            // Store file metadata (template, color_scheme, font_style) for re-export
+            setFileMetadata({
+              template: responseData.template || 'corporate_blue',
+              color_scheme: responseData.color_scheme || 'blue',
+              font_style: responseData.font_style || 'modern'
+            });
             
-            // Use the correct data source
-            const actualData = presentationData || resultData || directData;
-            
-            // Convert API data to PresentationOutline format
+            // Convert backend format to PresentationOutline format
             const apiOutline: PresentationOutline = {
-              title: actualData.title || "Presentation",
-              slide_count: actualData.slides?.length || 0,
+              title: backendContent.title || responseData.title || `Presentation ${id}`,
+              slide_count: backendContent.slides.length,
               estimated_duration: "10-15 minutes",
-              slides: actualData.slides?.map((slide: any, index: number) => ({
-                title: slide.title || slide.header || `Slide ${index + 1}`,
-                content: slide.content || slide.subheaders?.join('\n') || '',
-                slide_type: slide.slide_type || slide.type || 'content',
-                order: slide.order || index + 1
-              })) || []
+              slides: backendContent.slides.map((slide: any, index: number) => {
+                // Backend format: { slide_number, header, subheaders, slide_type, content }
+                // Frontend format: { title, content, slide_type, order }
+                return {
+                  title: slide.header || `Slide ${slide.slide_number || index + 1}`,
+                  content: slide.content || slide.subheaders?.join('\n') || '',
+                  slide_type: slide.slide_type || 'content',
+                  order: slide.slide_number || index + 1
+                };
+              })
             };
             
-            console.log('Generated outline:', apiOutline);
+            console.log('Converted outline:', apiOutline);
             setOutline(apiOutline);
           } else {
-            // Fallback to mock data if API fails
-          const mockOutline: PresentationOutline = {
-            title: "Cloud Computing and Digital Transformation: Modern Business Solutions",
-            slide_count: 12,
-            estimated_duration: "45 minutes",
-            slides: [
-              {
-                title: "Introduction to Cloud Computing",
-                content: "Overview of cloud computing concepts, benefits, and modern business applications. Understanding the shift from traditional IT infrastructure to cloud-based solutions.",
-                slide_type: "title",
-                order: 1
-              },
-              {
-                title: "What is Cloud Computing?",
-                content: "Definition and core characteristics of cloud computing. Service models: IaaS, PaaS, SaaS. Deployment models: Public, Private, Hybrid, Multi-cloud.",
-                slide_type: "content",
-                order: 2
-              },
-              {
-                title: "Benefits of Cloud Computing",
-                content: "Cost reduction and scalability. Improved flexibility and mobility. Enhanced security and compliance. Automatic updates and maintenance.",
-                slide_type: "content",
-                order: 3
-              },
-              {
-                title: "Digital Transformation Overview",
-                content: "What is digital transformation? Key drivers and business imperatives. The role of technology in modern business strategy.",
-                slide_type: "content",
-                order: 4
-              },
-              {
-                title: "Cloud Technologies and Services",
-                content: "Major cloud providers: AWS, Azure, Google Cloud. Key services: Compute, Storage, Database, Networking, AI/ML services.",
-                slide_type: "content",
-                order: 5
-              },
-              {
-                title: "Business Applications",
-                content: "Enterprise resource planning (ERP) in the cloud. Customer relationship management (CRM) systems. Business intelligence and analytics platforms.",
-                slide_type: "content",
-                order: 6
-              },
-              {
-                title: "Security and Compliance",
-                content: "Cloud security best practices. Data protection and privacy regulations. Compliance frameworks: GDPR, HIPAA, SOX.",
-                slide_type: "content",
-                order: 7
-              },
-              {
-                title: "Migration Strategies",
-                content: "Planning cloud migration. Lift and shift vs. re-architecting. Phased migration approaches. Risk mitigation strategies.",
-                slide_type: "content",
-                order: 8
-              },
-              {
-                title: "Cost Management",
-                content: "Understanding cloud pricing models. Cost optimization strategies. Monitoring and controlling cloud expenses.",
-                slide_type: "content",
-                order: 9
-              },
-              {
-                title: "Future Trends",
-                content: "Edge computing and IoT integration. Serverless computing evolution. AI and machine learning in the cloud. Sustainability and green computing.",
-                slide_type: "content",
-                order: 10
-              },
-              {
-                title: "Implementation Best Practices",
-                content: "Change management and training. Vendor selection criteria. Performance monitoring and optimization. Disaster recovery planning.",
-                slide_type: "content",
-                order: 11
-              },
-              {
-                title: "Conclusion and Next Steps",
-                content: "Summary of key benefits and considerations. Action plan for cloud adoption. Measuring success and ROI. Future roadmap for digital transformation.",
-                slide_type: "conclusion",
-                order: 12
-              }
-          ]
-          };
+            // Only throw error if response is not successful
+            if (response.success !== true) {
+              throw new Error((response as any).error || 'Failed to load presentation content');
+            } else {
+              throw new Error('Content field is missing in the response');
+            }
+          }
+        } catch (apiError: any) {
+          console.error('Error fetching presentation content:', apiError);
+          console.error('Error details:', {
+            message: apiError?.message,
+            status: apiError?.status,
+            response: apiError?.response,
+            userMessage: apiError?.userMessage,
+            rawResponse: apiError?.rawResponse
+          });
           
-          setOutline(mockOutline);
+          // Extract error message from various possible locations
+          let errorMessage = 'Failed to load presentation content';
+          
+          if (apiError?.userMessage) {
+            errorMessage = apiError.userMessage;
+          } else if (apiError?.response?.error) {
+            errorMessage = apiError.response.error;
+          } else if (apiError?.response?.data?.error) {
+            errorMessage = apiError.response.data.error;
+          } else if (apiError?.response?.data?.message) {
+            errorMessage = apiError.response.data.message;
+          } else if (apiError?.message) {
+            errorMessage = apiError.message;
+          }
+          
+          // Check if it's a "content not available" error (for older files)
+          const lowerErrorMessage = errorMessage.toLowerCase();
+          if (lowerErrorMessage.includes('not available') || 
+              lowerErrorMessage.includes('not found') || 
+              apiError?.status === 404) {
+            setError('Content data not available for this file. This file may have been created before the edit feature was added. You can still create a new presentation.');
+            
+            // Create a basic outline so user can still work
+            const fallbackOutline: PresentationOutline = {
+              title: `Presentation ${id}`,
+              slide_count: 1,
+              estimated_duration: "10-15 minutes",
+              slides: [{
+                title: `Presentation ${id}`,
+                content: 'Content data not available. Please create a new presentation to edit.',
+                slide_type: 'title',
+                order: 1
+              }]
+            };
+            setOutline(fallbackOutline);
+          } else {
+            setError(errorMessage);
+            showError(errorMessage);
+          }
         }
-        }
-      } catch (error) {
-        console.error('Error fetching presentation data:', error);
-        setError('Failed to load presentation data');
-        showError('Failed to load presentation data');
+      } catch (error: any) {
+        console.error('Error fetching presentation file:', error);
+        const errorMessage = error?.message || 'Failed to load presentation file';
+        setError(errorMessage);
+        showError(errorMessage + '. You can still create a new presentation.');
+        
+        // Create a basic outline so user can still edit
+        const fallbackOutline: PresentationOutline = {
+          title: `Presentation ${fileIdParam}`,
+          slide_count: 1,
+          estimated_duration: "10-15 minutes",
+          slides: [{
+            title: `Presentation ${fileIdParam}`,
+            content: 'Start editing your presentation',
+            slide_type: 'title',
+            order: 1
+          }]
+        };
+        setOutline(fallbackOutline);
       } finally {
         setLoading(false);
       }
     };
 
-    if (presentationId) {
-      fetchPresentationData();
+    if (fileIdParam) {
+      fetchPresentationFile();
     }
-  }, [presentationId, retryCount]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileIdParam]); // Only depend on fileIdParam to prevent multiple calls
 
-  const handleSave = (editedPresentation: any) => {
-    console.log('Saving edited presentation:', editedPresentation);
-    // Here you would save the edited presentation to the backend
+  const handleSave = async (editedContent: any) => {
+    if (!fileId || !outline) {
+      showError('File ID or content not available');
+      return;
+    }
+    
+    try {
+      // Convert editor content to backend format
+      // Backend expects: { title, slides: [{ slide_number, header, subheaders, slide_type, content }] }
+      const contentToExport = editedContent ? {
+        title: editedContent.title,
+        slides: editedContent.slides.map((slide: any, index: number) => ({
+          slide_number: slide.order || index + 1,
+          header: slide.title,
+          subheaders: slide.content ? slide.content.split('\n').filter((s: string) => s.trim()) : [],
+          slide_type: slide.slide_type || 'content',
+          content: slide.content || ''
+        }))
+      } : {
+        title: outline.title,
+        slides: outline.slides.map((slide, index) => ({
+          slide_number: slide.order || index + 1,
+          header: slide.title,
+          subheaders: slide.content ? slide.content.split('\n').filter((s: string) => s.trim()) : [],
+          slide_type: slide.slide_type || 'content',
+          content: slide.content || ''
+        }))
+      };
+
+      // Call export endpoint with edited content
+      // Use stored template metadata if available, otherwise use defaults
+      const exportResponse = await presentationApi.exportPresentation({
+        content: contentToExport,
+        template: fileMetadata?.template || 'corporate_blue',
+        color_scheme: fileMetadata?.color_scheme || 'blue',
+        font_style: fileMetadata?.font_style || 'modern'
+      });
+
+      if (!exportResponse.success || !exportResponse.job_id) {
+        throw new Error('Failed to start export');
+      }
+
+      showSuccess('Export started! Generating updated presentation...');
+
+      // Poll for job completion
+      const pollJobStatus = async (jobId: string, maxAttempts = 60, interval = 2500) => {
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          try {
+            const statusResponse = await presentationApi.getJobStatus(jobId);
+            
+            if (!statusResponse.success) {
+              throw new Error(statusResponse.error || 'Failed to get job status');
+            }
+
+            if (statusResponse.status === 'completed') {
+              const resultResponse = await presentationApi.getJobResult(jobId);
+              if (resultResponse.success && resultResponse.result) {
+                return { success: true, result: resultResponse.result };
+              } else {
+                throw new Error(resultResponse.error || 'Failed to get job result');
+              }
+            } else if (statusResponse.status === 'failed') {
+              throw new Error(statusResponse.error || 'Export failed');
+            }
+
+            await new Promise(resolve => setTimeout(resolve, interval));
+          } catch (error) {
+            if (attempt === maxAttempts - 1) {
+              throw error;
+            }
+            await new Promise(resolve => setTimeout(resolve, interval));
+          }
+        }
+        throw new Error('Export timeout');
+      };
+
+      const pollResult = await pollJobStatus(exportResponse.job_id);
+
+      if (pollResult.success && pollResult.result) {
+        const newFile = pollResult.result;
+        showSuccess(`Presentation saved successfully! New file ID: ${newFile.file_id}`);
+        
+        // Optionally redirect to the new file or refresh
+        // router.push(`/presentation/editor/${newFile.file_id}`);
+      } else {
+        throw new Error('Export completed but result is incomplete');
+      }
+    } catch (error) {
+      console.error('Error saving presentation:', error);
+      showError(error instanceof Error ? error.message : 'Failed to save presentation');
+    }
   };
 
   const handleDownload = () => {
@@ -247,12 +336,14 @@ export default function PresentationEditorPage() {
       </div>
 
       {/* Editor */}
-      <PowerPointEditor
-        presentationId={parseInt(presentationId)}
-        initialOutline={outline}
-        onSave={handleSave}
-        onDownload={handleDownload}
-      />
+      {outline && fileId && (
+        <PowerPointEditor
+          fileId={fileId}
+          initialOutline={outline}
+          onSave={handleSave}
+          onDownload={handleDownload}
+        />
+      )}
     </div>
   );
 }

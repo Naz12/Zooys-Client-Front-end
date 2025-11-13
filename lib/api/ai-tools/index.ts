@@ -16,6 +16,15 @@ export type { PowerPointApiClient } from './powerpoint-api';
 export type { ConverterApiClient } from './converter-api';
 export type { MathApiClient } from './math-api';
 export type { DiagramApiClient } from './diagram-api';
+export type {
+  DiagramGenerateRequest,
+  DiagramGenerateResponse,
+  DiagramResult,
+  DiagramListResponse,
+  DiagramResponse,
+  DiagramTypesResponse,
+  HealthResponse,
+} from './diagram-api';
 export type { WriterApiClient } from './writer-api';
 export type { FlashcardApiClient } from './flashcard-api';
 export type { ChatApiClient } from './chat-api';

@@ -18,6 +18,7 @@ import {
 import { useWorkflow } from '@/lib/presentation-workflow-context';
 import { InputStep } from './steps/InputStep';
 import { OutlineStep } from './steps/OutlineStep';
+import { ContentStep } from './steps/ContentStep';
 import { TemplateStep } from './steps/TemplateStep';
 import { GenerationStep } from './steps/GenerationStep';
 import { useNotifications } from '@/lib/notifications';
@@ -39,13 +40,20 @@ const steps = [
   },
   {
     id: 3,
+    title: 'Review Content',
+    description: 'Review and edit the generated content',
+    icon: FileText,
+    color: 'bg-teal-500',
+  },
+  {
+    id: 4,
     title: 'Choose Template',
     description: 'Select a design template for your presentation',
     icon: Palette,
     color: 'bg-purple-500',
   },
   {
-    id: 4,
+    id: 5,
     title: 'Generate & Download',
     description: 'Generate PowerPoint and download your presentation',
     icon: Download,
@@ -84,8 +92,10 @@ export function PresentationWorkflow() {
       case 2:
         return <OutlineStep />;
       case 3:
-        return <TemplateStep />;
+        return <ContentStep />;
       case 4:
+        return <TemplateStep />;
+      case 5:
         return <GenerationStep />;
       default:
         return <InputStep />;

@@ -3,7 +3,8 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
 import { 
   PresentationOutline, 
-  PresentationTemplate
+  PresentationTemplate,
+  PresentationContent
 } from './presentation-api-client';
 
 // Workflow State Types
@@ -27,18 +28,24 @@ export interface WorkflowState {
   
   // Step 2: Outline
   outline: PresentationOutline | null;
-  aiResultId: number | null;
+  outlineJobId: string | null;
   
-  // Step 3: Template
+  // Step 3: Content
+  content: PresentationContent | null;
+  contentJobId: string | null;
+  
+  // Step 4: Template
   selectedTemplate: string | null;
   templateData: Record<string, PresentationTemplate> | null;
   
-  // Step 4: Generation
+  // Step 5: Generation/Export
+  exportJobId: string | null;
   generationStatus: 'idle' | 'generating' | 'completed' | 'error';
   downloadUrl: string | null;
   powerpointFile: string | null;
   fileSize: number | null;
   slideCount: number | null;
+  fileId: number | null; // File ID from export result
 }
 
 // Action Types
@@ -47,12 +54,15 @@ export type WorkflowAction =
   | { type: 'SET_GENERATING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_INPUT_DATA'; payload: Partial<WorkflowState['inputData']> }
-  | { type: 'SET_OUTLINE'; payload: { outline: PresentationOutline; aiResultId: number } }
+  | { type: 'SET_OUTLINE'; payload: { outline: PresentationOutline; jobId: string } }
   | { type: 'UPDATE_OUTLINE'; payload: PresentationOutline }
+  | { type: 'SET_CONTENT'; payload: { content: PresentationContent; jobId: string } }
+  | { type: 'UPDATE_CONTENT'; payload: PresentationContent }
   | { type: 'SET_TEMPLATE_DATA'; payload: Record<string, PresentationTemplate> }
   | { type: 'SELECT_TEMPLATE'; payload: string }
+  | { type: 'SET_EXPORT_JOB_ID'; payload: string }
   | { type: 'SET_GENERATION_STATUS'; payload: WorkflowState['generationStatus'] }
-  | { type: 'SET_DOWNLOAD_DATA'; payload: { downloadUrl: string; powerpointFile: string; fileSize: number; slideCount: number } }
+  | { type: 'SET_DOWNLOAD_DATA'; payload: { downloadUrl: string; powerpointFile: string; fileSize: number; slideCount: number; fileId?: number } }
   | { type: 'RESET_WORKFLOW' }
   | { type: 'RESET_TO_STEP'; payload: number };
 
@@ -75,16 +85,21 @@ const initialState: WorkflowState = {
   },
   
   outline: null,
-  aiResultId: null,
+  outlineJobId: null,
+  
+  content: null,
+  contentJobId: null,
   
   selectedTemplate: null,
   templateData: null,
   
+  exportJobId: null,
   generationStatus: 'idle',
   downloadUrl: null,
   powerpointFile: null,
   fileSize: null,
   slideCount: null,
+  fileId: null,
 };
 
 // Reducer
@@ -110,7 +125,7 @@ function workflowReducer(state: WorkflowState, action: WorkflowAction): Workflow
       return { 
         ...state, 
         outline: action.payload.outline,
-        aiResultId: action.payload.aiResultId,
+        outlineJobId: action.payload.jobId,
         currentStep: 2,
         isGenerating: false,
         error: null
@@ -121,6 +136,23 @@ function workflowReducer(state: WorkflowState, action: WorkflowAction): Workflow
         ...state, 
         outline: action.payload,
         error: null 
+      };
+    
+    case 'SET_CONTENT':
+      return {
+        ...state,
+        content: action.payload.content,
+        contentJobId: action.payload.jobId,
+        currentStep: 3,
+        isGenerating: false,
+        error: null
+      };
+    
+    case 'UPDATE_CONTENT':
+      return {
+        ...state,
+        content: action.payload,
+        error: null
       };
     
     case 'SET_TEMPLATE_DATA':
@@ -134,8 +166,15 @@ function workflowReducer(state: WorkflowState, action: WorkflowAction): Workflow
       return { 
         ...state, 
         selectedTemplate: action.payload,
-        currentStep: 4,
+        currentStep: 5,
         error: null 
+      };
+    
+    case 'SET_EXPORT_JOB_ID':
+      return {
+        ...state,
+        exportJobId: action.payload,
+        error: null
       };
     
     case 'SET_GENERATION_STATUS':
@@ -154,6 +193,7 @@ function workflowReducer(state: WorkflowState, action: WorkflowAction): Workflow
         powerpointFile: action.payload.powerpointFile,
         fileSize: action.payload.fileSize,
         slideCount: action.payload.slideCount,
+        fileId: action.payload.fileId || null,
         generationStatus: 'completed',
         isGenerating: false,
         error: null
@@ -171,14 +211,17 @@ function workflowReducer(state: WorkflowState, action: WorkflowAction): Workflow
         error: null,
         isGenerating: false,
         // Reset subsequent steps
-        ...(action.payload < 2 && { outline: null, aiResultId: null }),
-        ...(action.payload < 3 && { selectedTemplate: null, templateData: null }),
-        ...(action.payload < 4 && { 
+        ...(action.payload < 2 && { outline: null, outlineJobId: null }),
+        ...(action.payload < 3 && { content: null, contentJobId: null }),
+        ...(action.payload < 4 && { selectedTemplate: null, templateData: null }),
+        ...(action.payload < 5 && { 
+          exportJobId: null,
           generationStatus: 'idle', 
           downloadUrl: null, 
           powerpointFile: null,
           fileSize: null,
-          slideCount: null
+          slideCount: null,
+          fileId: null
         }),
       };
     
@@ -215,10 +258,12 @@ export function WorkflowProvider({ children }: WorkflowProviderProps) {
       case 1:
         return true; // Always can start
       case 2:
-        return state.outline !== null && state.aiResultId !== null;
+        return state.outline !== null && state.outlineJobId !== null;
       case 3:
-        return state.outline !== null && state.aiResultId !== null;
+        return state.content !== null && state.contentJobId !== null;
       case 4:
+        return state.content !== null && state.contentJobId !== null;
+      case 5:
         return state.selectedTemplate !== null;
       default:
         return false;

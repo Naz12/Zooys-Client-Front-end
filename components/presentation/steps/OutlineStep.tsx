@@ -22,11 +22,58 @@ import {
   Presentation,
   Clock,
   FileText,
-  CheckCircle
+  CheckCircle,
+  Sparkles
 } from 'lucide-react';
 import { useWorkflow } from '@/lib/presentation-workflow-context';
 import { presentationApi, PresentationSlide } from '@/lib/presentation-api-client';
 import { useNotifications } from '@/lib/notifications';
+
+// Helper function to poll job status (same as in InputStep)
+async function pollJobStatus(
+  jobId: string,
+  onProgress?: (progress: number, stage?: string) => void,
+  maxAttempts: number = 60,
+  interval: number = 2500
+): Promise<{ success: boolean; result?: any; error?: string }> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const statusResponse = await presentationApi.getJobStatus(jobId);
+      
+      if (!statusResponse.success) {
+        return { success: false, error: statusResponse.error || 'Failed to get job status' };
+      }
+
+      const progress = statusResponse.progress || 0;
+      const stage = statusResponse.stage || statusResponse.stage_message;
+      
+      if (onProgress) {
+        onProgress(progress, stage);
+      }
+
+      if (statusResponse.status === 'completed') {
+        const resultResponse = await presentationApi.getJobResult(jobId);
+        if (resultResponse.success && resultResponse.result) {
+          return { success: true, result: resultResponse.result };
+        } else {
+          return { success: false, error: resultResponse.error || 'Failed to get job result' };
+        }
+      } else if (statusResponse.status === 'failed') {
+        return { success: false, error: statusResponse.error || 'Job failed' };
+      }
+
+      await new Promise(resolve => setTimeout(resolve, interval));
+    } catch (error) {
+      console.error(`Poll attempt ${attempt + 1} failed:`, error);
+      if (attempt === maxAttempts - 1) {
+        return { success: false, error: 'Polling failed' };
+      }
+      await new Promise(resolve => setTimeout(resolve, interval));
+    }
+  }
+
+  return { success: false, error: 'Job timeout' };
+}
 
 export function OutlineStep() {
   const { state, dispatch } = useWorkflow();
@@ -109,30 +156,70 @@ export function OutlineStep() {
   };
 
   const handleSaveChanges = async () => {
-    if (!editableOutline || !state.aiResultId) return;
+    if (!editableOutline) return;
+
+    dispatch({
+      type: 'UPDATE_OUTLINE',
+      payload: editableOutline
+    });
+    setIsEditing(false);
+    showSuccess('Outline saved successfully!');
+  };
+
+  const handleGenerateContent = async () => {
+    if (!state.outline) {
+      showError('No outline available');
+      return;
+    }
 
     setIsSaving(true);
+    dispatch({ type: 'SET_GENERATING', payload: true });
+
     try {
-      const response = await presentationApi.updateOutline(state.aiResultId, {
-        outline: editableOutline
+      // Use the current outline (edited or original)
+      const outlineToUse = editableOutline || state.outline;
+
+      // Generate content with the outline
+      const response = await presentationApi.generateContent({
+        outline: outlineToUse
       });
 
-      if (response.success) {
-        dispatch({
-          type: 'UPDATE_OUTLINE',
-          payload: response.data.outline
-        });
-        setIsEditing(false);
-        showSuccess('Outline updated successfully!');
-      } else {
-        throw new Error('Failed to update outline');
+      if (!response.success || !response.job_id) {
+        throw new Error('Failed to start content generation');
       }
+
+      showSuccess('Content generation started! Polling for results...');
+
+      // Poll for job status and result
+      const pollResult = await pollJobStatus(
+        response.job_id,
+        (progress, stage) => {
+          console.log(`Content generation progress: ${progress}% - ${stage}`);
+        }
+      );
+
+      if (!pollResult.success || !pollResult.result?.content) {
+        throw new Error(pollResult.error || 'Failed to generate content');
+      }
+
+      // Set the content in state
+      dispatch({
+        type: 'SET_CONTENT',
+        payload: {
+          content: pollResult.result.content,
+          jobId: response.job_id
+        }
+      });
+
+      showSuccess('Content generated successfully!');
     } catch (error) {
-      console.error('Error updating outline:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update outline';
+      console.error('Error generating content:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate content';
+      dispatch({ type: 'SET_ERROR', payload: errorMessage });
       showError(errorMessage);
     } finally {
       setIsSaving(false);
+      dispatch({ type: 'SET_GENERATING', payload: false });
     }
   };
 
@@ -379,6 +466,30 @@ export function OutlineStep() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Generate Content Button */}
+      {!isEditing && state.outline && (
+        <div className="flex justify-center pt-6">
+          <Button
+            onClick={handleGenerateContent}
+            disabled={isSaving || state.isGenerating}
+            size="lg"
+            className="flex items-center gap-2"
+          >
+            {isSaving || state.isGenerating ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                Generating Content...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" />
+                Generate Content
+              </>
+            )}
+          </Button>
+        </div>
       )}
     </div>
   );

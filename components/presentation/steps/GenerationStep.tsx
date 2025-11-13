@@ -19,8 +19,54 @@ import {
   PenTool
 } from 'lucide-react';
 import { useWorkflow } from '@/lib/presentation-workflow-context';
-import { presentationApi, GeneratePowerPointRequest } from '@/lib/presentation-api-client';
+import { presentationApi } from '@/lib/presentation-api-client';
 import { useNotifications } from '@/lib/notifications';
+
+// Helper function to poll job status
+async function pollJobStatus(
+  jobId: string,
+  onProgress?: (progress: number, stage?: string) => void,
+  maxAttempts: number = 60,
+  interval: number = 2500
+): Promise<{ success: boolean; result?: any; error?: string }> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const statusResponse = await presentationApi.getJobStatus(jobId);
+      
+      if (!statusResponse.success) {
+        return { success: false, error: statusResponse.error || 'Failed to get job status' };
+      }
+
+      const progress = statusResponse.progress || 0;
+      const stage = statusResponse.stage || statusResponse.stage_message;
+      
+      if (onProgress) {
+        onProgress(progress, stage);
+      }
+
+      if (statusResponse.status === 'completed') {
+        const resultResponse = await presentationApi.getJobResult(jobId);
+        if (resultResponse.success && resultResponse.result) {
+          return { success: true, result: resultResponse.result };
+        } else {
+          return { success: false, error: resultResponse.error || 'Failed to get job result' };
+        }
+      } else if (statusResponse.status === 'failed') {
+        return { success: false, error: statusResponse.error || 'Job failed' };
+      }
+
+      await new Promise(resolve => setTimeout(resolve, interval));
+    } catch (error) {
+      console.error(`Poll attempt ${attempt + 1} failed:`, error);
+      if (attempt === maxAttempts - 1) {
+        return { success: false, error: 'Polling failed' };
+      }
+      await new Promise(resolve => setTimeout(resolve, interval));
+    }
+  }
+
+  return { success: false, error: 'Job timeout' };
+}
 
 const generationSteps = [
   { id: 1, title: 'Preparing Content', description: 'Processing your outline and content' },
@@ -49,8 +95,8 @@ export function GenerationStep() {
   }, [state.generationStatus, state.downloadUrl, state.powerpointFile, state.fileSize, state.slideCount]);
 
   const handleGeneratePowerPoint = async () => {
-    if (!state.aiResultId || !state.selectedTemplate) {
-      showError('Missing required data for generation');
+    if (!state.content || !state.selectedTemplate) {
+      showError('Missing required data for generation. Please ensure content is generated and template is selected.');
       return;
     }
 
@@ -62,107 +108,76 @@ export function GenerationStep() {
     setIsGenerating(true);
     setCurrentStep(0);
     setProgress(0);
-    setEstimatedTime(30); // 30 seconds estimated
+    setEstimatedTime(30);
 
     dispatch({ type: 'SET_GENERATION_STATUS', payload: 'generating' });
 
     try {
-      // Simulate progress updates
-      const progressInterval = setInterval(() => {
-        setProgress(prev => {
-          const newProgress = prev + Math.random() * 15;
-          if (newProgress >= 100) {
-            clearInterval(progressInterval);
-            return 100;
-          }
-          return newProgress;
-        });
-      }, 1000);
-
-      const stepInterval = setInterval(() => {
-        setCurrentStep(prev => {
-          const newStep = prev + 1;
-          if (newStep >= generationSteps.length) {
-            clearInterval(stepInterval);
-            return generationSteps.length - 1;
-          }
-          return newStep;
-        });
-      }, 8000);
-
-      // First, generate content for slides if not already done
-      // Fix: Use correct state property (state.outline instead of state.outlineData)
-      if (!state.outline?.slides?.[0]?.content) {
-        await presentationApi.generateContent(state.aiResultId);
-      }
-
-      // Prepare presentation data for export
-      const presentationData = {
-        title: state.outline?.title || 'Presentation',
-        slides: state.outline?.slides || [],
+      // Prepare export request with content
+      const exportRequest = {
+        content: state.content,
         template: state.selectedTemplate,
         color_scheme: state.templateData?.[state.selectedTemplate]?.color_scheme || 'blue',
-        font_style: 'modern'
+        font_style: 'modern' as const
       };
 
-      const response = await presentationApi.exportToPowerPoint(state.aiResultId, presentationData);
+      // Step 1: Start export job
+      const response = await presentationApi.exportPresentation(exportRequest);
 
-      clearInterval(progressInterval);
-      clearInterval(stepInterval);
+      if (!response.success || !response.job_id) {
+        throw new Error('Failed to start export job');
+      }
 
-      // Add detailed response logging
-      console.log('PowerPoint Export Response:', response);
-      console.log('Response success:', response.success);
-      console.log('Response data:', response.data);
+      dispatch({ type: 'SET_EXPORT_JOB_ID', payload: response.job_id });
+      showSuccess('Export started! Generating PowerPoint...');
 
-      if (response.success) {
-        console.log('Dispatching SET_DOWNLOAD_DATA with payload:', {
-          downloadUrl: response.data.download_url,
-          powerpointFile: response.data.file_path,
-          fileSize: response.data.file_size,
-          slideCount: response.data.slide_count || 12
-        });
-        
-        // Make download URL absolute by prepending backend server URL
-        const absoluteDownloadUrl = response.data.download_url.startsWith('http') 
-          ? response.data.download_url 
-          : `http://localhost:8000${response.data.download_url}`;
+      // Step 2: Poll for job status and result
+      const pollResult = await pollJobStatus(
+        response.job_id,
+        (progress, stage) => {
+          setProgress(progress);
+          console.log(`Export progress: ${progress}% - ${stage}`);
+        }
+      );
+
+      if (!pollResult.success || !pollResult.result) {
+        throw new Error(pollResult.error || 'Failed to export presentation');
+      }
+
+      const exportResult = pollResult.result;
+
+      // Step 3: Set download data
+      if (exportResult.download_url && exportResult.file_size !== undefined) {
+        // Make download URL absolute
+        const absoluteDownloadUrl = exportResult.download_url.startsWith('http') 
+          ? exportResult.download_url 
+          : `http://localhost:8000${exportResult.download_url}`;
         
         dispatch({
           type: 'SET_DOWNLOAD_DATA',
           payload: {
             downloadUrl: absoluteDownloadUrl,
-            powerpointFile: response.data.file_path,
-            fileSize: response.data.file_size,
-            slideCount: response.data.slide_count || 12 // Default to 12 slides if not provided
+            powerpointFile: exportResult.filename || 'presentation.pptx',
+            fileSize: exportResult.file_size,
+            slideCount: exportResult.slides_count || state.content.slides.length,
+            fileId: exportResult.file_id || null // Store file_id for editing
           }
         });
         
-        console.log('State after dispatch:', state);
         setProgress(100);
         setCurrentStep(generationSteps.length - 1);
         showSuccess('PowerPoint generated successfully!');
-        
-        // Add small delay to ensure file is ready for download (backend agent recommendation)
-        setTimeout(() => {
-          console.log('File ready for download');
-        }, 500);
       } else {
-        throw new Error('Failed to generate PowerPoint');
+        throw new Error('Export completed but result data is incomplete');
       }
     } catch (error) {
       console.error('Error generating PowerPoint:', error);
-      console.error('Error details:', {
-        name: error instanceof Error ? error.name : 'Unknown',
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined
-      });
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate PowerPoint';
       dispatch({ type: 'SET_ERROR', payload: errorMessage });
+      dispatch({ type: 'SET_GENERATION_STATUS', payload: 'error' });
       showError(errorMessage);
     } finally {
       setIsGenerating(false);
-      // Don't override generationStatus here - let SET_DOWNLOAD_DATA handle it
     }
   };
 
@@ -207,8 +222,17 @@ export function GenerationStep() {
   };
 
   const handleEditPresentation = () => {
-    // Navigate to the editor page
-    window.location.href = `/presentation/editor/${state.aiResultId}`;
+    // Navigate to editor page with file_id
+    if (state.fileId) {
+      window.location.href = `/presentation/editor/${state.fileId}`;
+    } else if (state.downloadUrl) {
+      // Try to extract file_id from URL if not stored
+      // URL format: /storage/presentations/{user_id}/presentation_{user_id}_{job_id}.pptx
+      // Or we might need to get it from the files list
+      showError('File ID not available. Please try again or download the file first.');
+    } else {
+      showError('No presentation file available to edit');
+    }
   };
 
   const getStatusIcon = () => {
@@ -319,7 +343,7 @@ export function GenerationStep() {
             {state.generationStatus === 'idle' && (
               <Button
                 onClick={handleGeneratePowerPoint}
-                disabled={!state.selectedTemplate || !state.outline || isGenerating}
+                disabled={!state.selectedTemplate || !state.content || isGenerating}
                 size="lg"
                 className="flex items-center gap-2"
               >
@@ -374,7 +398,7 @@ export function GenerationStep() {
       </Card>
 
       {/* Presentation Summary */}
-      {state.outline && (
+      {state.content && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -389,15 +413,11 @@ export function GenerationStep() {
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Title:</span>
-                    <span className="text-sm font-medium">{state.outline.title}</span>
+                    <span className="text-sm font-medium">{state.content.title}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Slides:</span>
-                    <span className="text-sm font-medium">{state.outline.slide_count}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Duration:</span>
-                    <span className="text-sm font-medium">{state.outline.estimated_duration}</span>
+                    <span className="text-sm font-medium">{state.content.slides.length}</span>
                   </div>
                 </div>
               </div>

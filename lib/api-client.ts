@@ -187,8 +187,13 @@ export class ApiClient {
         }
         
         // Fallback to generic messages based on status code
+        // For 404, use backend message if available (backend may return 404 with error message)
         if (response.status === 404) {
-          userMessage = 'The requested resource was not found. Please check if the service is available.';
+          if (errorData && (errorData.error || errorData.message)) {
+            userMessage = errorData.error || errorData.message;
+          } else {
+            userMessage = 'The requested resource was not found. Please check if the service is available.';
+          }
         } else if (response.status === 401) {
           // For login endpoints, use the backend message if available, otherwise generic
           if (endpoint === '/login' && errorData && errorData.message) {
@@ -221,16 +226,21 @@ export class ApiClient {
               url: url,
               errorData: errorData,
               rawResponse: responseText,
+              responseTextLength: responseText?.length || 0,
+              hasErrorData: errorData && typeof errorData === 'object' && Object.keys(errorData).length > 0,
               headers: Object.fromEntries(response.headers.entries())
             };
             console.error('API Error Response:', errorInfo);
+            
+            // Log the error data separately if it exists and has content
+            if (errorData && typeof errorData === 'object' && Object.keys(errorData).length > 0) {
+              console.error('Backend Error Details:', errorData);
+            } else if (responseText) {
+              console.error('Raw Response Text (not JSON):', responseText.substring(0, 500));
+            } else {
+              console.error('Empty response body - status:', response.status);
+            }
           }
-          
-          // Log the error data separately for better visibility (only if not empty)
-          // Disabled to prevent empty object logging
-          // if (errorData && Object.keys(errorData).length > 0) {
-          //   console.error('Backend Error Details:', errorData);
-          // }
         }
         
         const error = new Error(userMessage);
@@ -378,8 +388,13 @@ export class ApiClient {
         }
         
         // Fallback to generic messages based on status code
+        // For 404, use backend message if available (backend may return 404 with error message)
         if (response.status === 404) {
-          userMessage = 'The requested resource was not found. Please check if the service is available.';
+          if (errorData && (errorData.error || errorData.message)) {
+            userMessage = errorData.error || errorData.message;
+          } else {
+            userMessage = 'The requested resource was not found. Please check if the service is available.';
+          }
         } else if (response.status === 401) {
           // For login endpoints, use the backend message if available, otherwise generic
           if (endpoint === '/login' && errorData && errorData.message) {
@@ -412,16 +427,21 @@ export class ApiClient {
               url: url,
               errorData: errorData,
               rawResponse: responseText,
+              responseTextLength: responseText?.length || 0,
+              hasErrorData: errorData && typeof errorData === 'object' && Object.keys(errorData).length > 0,
               headers: Object.fromEntries(response.headers.entries())
             };
             console.error('API Error Response:', errorInfo);
+            
+            // Log the error data separately if it exists and has content
+            if (errorData && typeof errorData === 'object' && Object.keys(errorData).length > 0) {
+              console.error('Backend Error Details:', errorData);
+            } else if (responseText) {
+              console.error('Raw Response Text (not JSON):', responseText.substring(0, 500));
+            } else {
+              console.error('Empty response body - status:', response.status);
+            }
           }
-          
-          // Log the error data separately for better visibility (only if not empty)
-          // Disabled to prevent empty object logging
-          // if (errorData && Object.keys(errorData).length > 0) {
-          //   console.error('Backend Error Details:', errorData);
-          // }
         }
         
         const error = new Error(userMessage);
