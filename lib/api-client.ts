@@ -192,7 +192,7 @@ export class ApiClient {
           if (errorData && (errorData.error || errorData.message)) {
             userMessage = errorData.error || errorData.message;
           } else {
-            userMessage = 'The requested resource was not found. Please check if the service is available.';
+          userMessage = 'The requested resource was not found. Please check if the service is available.';
           }
         } else if (response.status === 401) {
           // For login endpoints, use the backend message if available, otherwise generic
@@ -231,7 +231,7 @@ export class ApiClient {
               headers: Object.fromEntries(response.headers.entries())
             };
             console.error('API Error Response:', errorInfo);
-            
+          
             // Log the error data separately if it exists and has content
             if (errorData && typeof errorData === 'object' && Object.keys(errorData).length > 0) {
               console.error('Backend Error Details:', errorData);
@@ -393,7 +393,7 @@ export class ApiClient {
           if (errorData && (errorData.error || errorData.message)) {
             userMessage = errorData.error || errorData.message;
           } else {
-            userMessage = 'The requested resource was not found. Please check if the service is available.';
+          userMessage = 'The requested resource was not found. Please check if the service is available.';
           }
         } else if (response.status === 401) {
           // For login endpoints, use the backend message if available, otherwise generic
@@ -432,7 +432,7 @@ export class ApiClient {
               headers: Object.fromEntries(response.headers.entries())
             };
             console.error('API Error Response:', errorInfo);
-            
+          
             // Log the error data separately if it exists and has content
             if (errorData && typeof errorData === 'object' && Object.keys(errorData).length > 0) {
               console.error('Backend Error Details:', errorData);

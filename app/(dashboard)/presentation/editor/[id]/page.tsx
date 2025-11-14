@@ -48,7 +48,7 @@ export default function PresentationEditorPage() {
           // { success: true, content: { title, slides: [...] }, file_id, title, template, ... }
           // OR wrapped in response.data: { success: true, data: { content: {...}, file_id, ... } }
           const responseData = (response as any).data || response;
-          
+            
           // Check if response is successful and has content
           if (response.success === true && responseData.content) {
             // The backend returns content in this format:
@@ -79,7 +79,7 @@ export default function PresentationEditorPage() {
                 // Frontend format: { title, content, slide_type, order }
                 return {
                   title: slide.header || `Slide ${slide.slide_number || index + 1}`,
-                  content: slide.content || slide.subheaders?.join('\n') || '',
+                content: slide.content || slide.subheaders?.join('\n') || '',
                   slide_type: slide.slide_type || 'content',
                   order: slide.slide_number || index + 1
                 };
@@ -163,7 +163,7 @@ export default function PresentationEditorPage() {
             slide_type: 'title',
             order: 1
           }]
-        };
+          };
         setOutline(fallbackOutline);
       } finally {
         setLoading(false);
@@ -312,38 +312,36 @@ export default function PresentationEditorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Button
-              onClick={handleBack}
-              variant="ghost"
-              size="sm"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
-            <div>
-              <h1 className="text-xl font-semibold">PowerPoint Editor</h1>
-              <p className="text-sm text-muted-foreground">
-                Editing: {outline.title}
-              </p>
-            </div>
+    <div className="h-screen flex flex-col bg-gray-50">
+      {/* Minimal Header with Back Link */}
+      <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between flex-shrink-0">
+        <Button
+          onClick={handleBack}
+          variant="ghost"
+          size="sm"
+          className="flex items-center gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span>Back to Presentations</span>
+        </Button>
+        {outline && (
+          <div className="text-sm text-muted-foreground truncate max-w-md">
+            Editing: {outline.title}
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Editor */}
-      {outline && fileId && (
-        <PowerPointEditor
-          fileId={fileId}
-          initialOutline={outline}
-          onSave={handleSave}
-          onDownload={handleDownload}
-        />
-      )}
+      {/* Editor - Takes full remaining space */}
+      <div className="flex-1 overflow-hidden">
+        {outline && fileId && (
+          <PowerPointEditor
+            fileId={fileId}
+            initialOutline={outline}
+            onSave={handleSave}
+            onDownload={handleDownload}
+          />
+        )}
+      </div>
     </div>
   );
 }

@@ -27,12 +27,20 @@ import {
   AlignCenter,
   AlignRight,
   Palette,
-  Upload
+  Upload,
+  FileText,
+  BarChart3
 } from 'lucide-react';
 import { useNotifications } from '@/lib/notifications';
 import { PresentationOutline, Slide } from '@/lib/presentation-workflow-context';
 import { presentationApi } from '@/lib/presentation-api-client';
 import { debounce } from 'lodash';
+import RichTextEditor from './RichTextEditor';
+import ImageEditor from './ImageEditor';
+import TableEditor, { TableData } from './TableEditor';
+import ChartEditor, { ChartData } from './ChartEditor';
+import SlideTemplates from './SlideTemplates';
+import { useEditorHistory } from '@/lib/hooks/useEditorHistory';
 
 interface PowerPointEditorProps {
   fileId: number;
@@ -42,30 +50,9 @@ interface PowerPointEditorProps {
   onDownload?: () => void;
 }
 
-interface EditorSlide extends Slide {
-  id: string;
-  elements: EditorElement[];
-}
-
-interface EditorElement {
-  id: string;
-  type: 'text' | 'image' | 'shape';
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  content: string;
-  style: {
-    fontSize?: number;
-    fontFamily?: string;
-    color?: string;
-    backgroundColor?: string;
-    bold?: boolean;
-    italic?: boolean;
-    underline?: boolean;
-    align?: 'left' | 'center' | 'right';
-  };
-}
+// EditorSlide and EditorElement are imported from lib/presentation-editor-types.ts
+// EditorSlide extends the base Slide interface from workflow context
+type EditorSlideWithBase = EditorSlide & Slide;
 
 const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
   fileId,
@@ -75,7 +62,7 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
   onDownload
 }) => {
   const { showSuccess, showError } = useNotifications();
-  const [slides, setSlides] = useState<EditorSlide[]>([]);
+  const [slides, setSlides] = useState<EditorSlideWithBase[]>([]);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -85,48 +72,120 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
   const [presentationTitle, setPresentationTitle] = useState(initialOutline.title);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showGrid, setShowGrid] = useState(false);
+  const [snapToGrid, setSnapToGrid] = useState(true);
+  const [gridSize, setGridSize] = useState(10);
+  const [alignmentGuides, setAlignmentGuides] = useState<{ x?: number; y?: number }>({});
+  const [editingImageId, setEditingImageId] = useState<string | null>(null);
+  const [editingTableId, setEditingTableId] = useState<string | null>(null);
+  const [editingChartId, setEditingChartId] = useState<string | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
+
+  // Initialize history
+  const { saveState, undo: undoHistory, redo: redoHistory, canUndo, canRedo, clearHistory } = useEditorHistory({
+    slides: [],
+    currentSlideIndex: 0,
+    selectedElement: null,
+    presentationTitle: initialOutline.title
+  });
 
   // Initialize slides from outline
   useEffect(() => {
-    const editorSlides: EditorSlide[] = initialOutline.slides.map((slide, index) => ({
-      ...slide,
-      id: `slide-${index}`,
-      elements: [
-        {
+    const editorSlides: EditorSlideWithBase[] = initialOutline.slides.map((slide, index): EditorSlideWithBase => {
+      const elements = [];
+      
+      // Add title element if slide has a title
+      // Handle title as string or convert to string
+      const titleText = typeof slide.title === 'string' 
+        ? slide.title 
+        : slide.title?.toString() || '';
+      
+      if (titleText && titleText.trim()) {
+        elements.push({
           id: `element-${index}-0`,
-          type: 'text',
-          x: 50,
-          y: 50,
-          width: 600,
-          height: 100,
-          content: slide.title,
+          type: 'text' as const,
+          x: 30, // Small margin from left
+          y: 30, // Small margin from top - visible area
+          width: 700, // Reasonable width that fits most screens
+          height: 100, // Enough for title
+          content: titleText,
+          htmlContent: `<h1 style="margin: 0; padding: 0;">${titleText}</h1>`,
           style: {
-            fontSize: 32,
+            fontSize: 36,
             fontFamily: 'Arial',
             color: '#000000',
             bold: true,
-            align: 'center'
+            align: 'center' as const
           }
-        },
-        {
+        });
+      }
+      
+      // Add content element if slide has content
+      // Handle content as string, array, or other types
+      const contentText = typeof slide.content === 'string' 
+        ? slide.content 
+        : Array.isArray(slide.content) 
+          ? slide.content.join('\n')
+          : slide.content?.toString() || '';
+      
+      if (contentText && contentText.trim()) {
+        elements.push({
           id: `element-${index}-1`,
-          type: 'text',
-          x: 50,
-          y: 200,
-          width: 600,
-          height: 300,
-          content: slide.content,
+          type: 'text' as const,
+          x: 30,
+          y: titleText && titleText.trim() ? 150 : 30, // Position below title or start near top if no title
+          width: 700,
+          height: 350,
+          content: contentText,
+          htmlContent: `<p style="margin: 0; padding: 0;">${contentText.replace(/\n/g, '<br>')}</p>`,
           style: {
-            fontSize: 16,
+            fontSize: 18,
             fontFamily: 'Arial',
             color: '#333333',
-            align: 'left'
+            align: 'left' as const
           }
-        }
-      ]
-    }));
+        });
+      }
+      
+      // If no elements, add a placeholder
+      if (elements.length === 0) {
+        elements.push({
+          id: `element-${index}-0`,
+          type: 'text' as const,
+          x: 30,
+          y: 200,
+          width: 700,
+          height: 100,
+          content: 'Click to edit',
+          htmlContent: '<p style="margin: 0; padding: 0;">Click to edit</p>',
+          style: {
+            fontSize: 24,
+            fontFamily: 'Arial',
+            color: '#999999',
+            align: 'center' as const
+          }
+        });
+      }
+      
+      return {
+        ...slide,
+        id: `slide-${index}`,
+        elements
+      };
+    });
+    
     setSlides(editorSlides);
-  }, [initialOutline]);
+    
+    // Initialize history with the first state
+    if (editorSlides.length > 0) {
+      saveState({
+        slides: editorSlides,
+        currentSlideIndex: 0,
+        selectedElement: null,
+        presentationTitle: initialOutline.title
+      });
+    }
+  }, [initialOutline, saveState]);
 
   const currentSlide = slides[currentSlideIndex];
 
@@ -142,7 +201,7 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
   );
 
   const addSlide = () => {
-    const newSlide: EditorSlide = {
+    const newSlide: EditorSlideWithBase = {
       id: `slide-${slides.length}`,
       title: `New Slide ${slides.length + 1}`,
       content: 'Add your content here...',
@@ -167,8 +226,17 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
         }
       ]
     };
-    setSlides([...slides, newSlide]);
+    const updatedSlides = [...slides, newSlide];
+    setSlides(updatedSlides);
     setCurrentSlideIndex(slides.length);
+    
+    // Save to history
+    saveState({
+      slides: updatedSlides,
+      currentSlideIndex: slides.length,
+      selectedElement,
+      presentationTitle
+    });
   };
 
   const deleteSlide = (slideIndex: number) => {
@@ -178,11 +246,75 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
     }
     
     const newSlides = slides.filter((_, index) => index !== slideIndex);
+    const newIndex = currentSlideIndex >= newSlides.length ? newSlides.length - 1 : currentSlideIndex;
     setSlides(newSlides);
+    setCurrentSlideIndex(newIndex);
     
-    if (currentSlideIndex >= newSlides.length) {
-      setCurrentSlideIndex(newSlides.length - 1);
-    }
+    // Save to history
+    saveState({
+      slides: newSlides,
+      currentSlideIndex: newIndex,
+      selectedElement,
+      presentationTitle
+    });
+  };
+
+  const duplicateSlide = (slideIndex: number) => {
+    const slideToDuplicate = slides[slideIndex];
+    if (!slideToDuplicate) return;
+    
+    // Create a deep copy of the slide with new IDs
+    const duplicatedSlide: EditorSlideWithBase = {
+      ...slideToDuplicate,
+      id: `slide-${Date.now()}`,
+      title: `${slideToDuplicate.title} (Copy)`,
+      order: slides.length,
+      elements: slideToDuplicate.elements.map((element, index) => ({
+        ...element,
+        id: `element-${Date.now()}-${index}`,
+        content: element.content,
+        htmlContent: element.htmlContent,
+        tableData: element.tableData ? { ...element.tableData } : undefined,
+        chartData: element.chartData ? { ...element.chartData, data: [...element.chartData.data] } : undefined
+      }))
+    };
+    
+    const newSlides = [...slides];
+    newSlides.splice(slideIndex + 1, 0, duplicatedSlide);
+    setSlides(newSlides);
+    setCurrentSlideIndex(slideIndex + 1);
+    
+    // Save to history
+    saveState({
+      slides: newSlides,
+      currentSlideIndex: slideIndex + 1,
+      selectedElement,
+      presentationTitle
+    });
+  };
+
+  const moveSlide = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    
+    const newSlides = [...slides];
+    const [movedSlide] = newSlides.splice(fromIndex, 1);
+    newSlides.splice(toIndex, 0, movedSlide);
+    
+    // Update order property
+    newSlides.forEach((slide, index) => {
+      slide.order = index;
+    });
+    
+    setSlides(newSlides);
+    setCurrentSlideIndex(toIndex);
+    
+    // Save to history
+    saveState({
+      slides: newSlides,
+      currentSlideIndex: toIndex,
+      selectedElement,
+      presentationTitle
+    });
   };
 
   const addTextElement = () => {
@@ -209,6 +341,127 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
     setSlides(updatedSlides);
   };
 
+  const addTableElement = () => {
+    if (!currentSlide) return;
+    
+    const defaultTableData: TableData = {
+      rows: 3,
+      cols: 3,
+      cells: [
+        ['', '', ''],
+        ['', '', ''],
+        ['', '', '']
+      ],
+      headerRow: true,
+      borderColor: '#d1d5db',
+      borderWidth: 1,
+      cellPadding: 8
+    };
+    
+    const newElement: EditorElement = {
+      id: `element-${Date.now()}`,
+      type: 'table',
+      x: 100,
+      y: 100,
+      width: 400,
+      height: 200,
+      content: 'Table',
+      tableData: defaultTableData,
+      style: {}
+    };
+    
+    const updatedSlides = [...slides];
+    updatedSlides[currentSlideIndex].elements.push(newElement);
+    setSlides(updatedSlides);
+    setEditingTableId(newElement.id);
+  };
+
+  const handleTableSave = (tableData: TableData) => {
+    if (editingTableId) {
+      updateElement(editingTableId, { tableData });
+      setEditingTableId(null);
+    }
+  };
+
+  const handleApplyTemplate = (template: SlideTemplate) => {
+    if (!currentSlide) return;
+    
+    // Generate unique IDs for template elements
+    const templateElements = template.elements.map((element, index) => ({
+      ...element,
+      id: `element-${Date.now()}-${index}`,
+      x: element.x,
+      y: element.y,
+      width: element.width,
+      height: element.height
+    }));
+    
+    // Replace current slide elements with template elements
+    const updatedSlides = [...slides];
+    updatedSlides[currentSlideIndex] = {
+      ...updatedSlides[currentSlideIndex],
+      elements: templateElements
+    };
+    
+    setSlides(updatedSlides);
+    
+    // Save to history
+    saveState({
+      slides: updatedSlides,
+      currentSlideIndex,
+      selectedElement: null,
+      presentationTitle
+    });
+  };
+
+  const addChartElement = () => {
+    if (!currentSlide) return;
+    
+    const defaultChartData: ChartData = {
+      type: 'bar',
+      data: [
+        { name: 'Item 1', value: 10 },
+        { name: 'Item 2', value: 20 },
+        { name: 'Item 3', value: 15 }
+      ],
+      dataKey: 'value',
+      nameKey: 'name',
+      title: 'Chart Title'
+    };
+    
+    const newElement: EditorElement = {
+      id: `element-${Date.now()}`,
+      type: 'chart',
+      x: 100,
+      y: 100,
+      width: 500,
+      height: 400,
+      content: 'Chart',
+      chartData: defaultChartData,
+      style: {}
+    };
+    
+    const updatedSlides = [...slides];
+    updatedSlides[currentSlideIndex].elements.push(newElement);
+    setSlides(updatedSlides);
+    setEditingChartId(newElement.id);
+    
+    // Save to history
+    saveState({
+      slides: updatedSlides,
+      currentSlideIndex,
+      selectedElement,
+      presentationTitle
+    });
+  };
+
+  const handleChartSave = (chartData: ChartData) => {
+    if (editingChartId) {
+      updateElement(editingChartId, { chartData });
+      setEditingChartId(null);
+    }
+  };
+
   const addShapeElement = (shapeType: 'square' | 'circle' | 'triangle') => {
     if (!currentSlide) return;
     
@@ -229,6 +482,54 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
     const updatedSlides = [...slides];
     updatedSlides[currentSlideIndex].elements.push(newElement);
     setSlides(updatedSlides);
+    
+    // Save to history
+    saveState({
+      slides: updatedSlides,
+      currentSlideIndex,
+      selectedElement,
+      presentationTitle
+    });
+  };
+
+  // Helper function to snap value to grid
+  const snapToGridValue = (value: number): number => {
+    if (!snapToGrid) return value;
+    return Math.round(value / gridSize) * gridSize;
+  };
+
+  // Helper function to detect alignment with other elements
+  const detectAlignment = (elementId: string, newX: number, newY: number) => {
+    const currentElement = currentSlide?.elements.find(el => el.id === elementId);
+    if (!currentElement) return { x: undefined, y: undefined };
+
+    const guides: { x?: number; y?: number } = {};
+    const threshold = 5; // pixels
+
+    // Check alignment with other elements
+    currentSlide?.elements.forEach(el => {
+      if (el.id === elementId) return;
+
+      // Check horizontal alignment (same Y)
+      if (Math.abs(newY - el.y) < threshold) {
+        guides.y = el.y;
+      }
+
+      // Check vertical alignment (same X)
+      if (Math.abs(newX - el.x) < threshold) {
+        guides.x = el.x;
+      }
+
+      // Check alignment with element edges
+      if (Math.abs(newX - (el.x + el.width)) < threshold) {
+        guides.x = el.x + el.width;
+      }
+      if (Math.abs(newY - (el.y + el.height)) < threshold) {
+        guides.y = el.y + el.height;
+      }
+    });
+
+    return guides;
   };
 
   const updateElement = (elementId: string, updates: Partial<EditorElement>) => {
@@ -258,6 +559,40 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
     autoSave(presentationData);
   };
 
+  // Handle element drag
+  const handleElementDrag = (elementId: string, data: { x: number; y: number }) => {
+    const snappedX = snapToGridValue(data.x);
+    const snappedY = snapToGridValue(data.y);
+    const guides = detectAlignment(elementId, snappedX, snappedY);
+    
+    setAlignmentGuides(guides);
+    
+    // Apply alignment if detected
+    const finalX = guides.x !== undefined ? guides.x : snappedX;
+    const finalY = guides.y !== undefined ? guides.y : snappedY;
+    
+    updateElement(elementId, { x: finalX, y: finalY });
+  };
+
+  // Handle element drag end
+  const handleElementDragEnd = () => {
+    setAlignmentGuides({});
+    // Save to history after drag ends
+    saveState({
+      slides,
+      currentSlideIndex,
+      selectedElement,
+      presentationTitle
+    });
+  };
+
+  // Handle element resize
+  const handleElementResize = (elementId: string, width: number, height: number) => {
+    const snappedWidth = snapToGridValue(width);
+    const snappedHeight = snapToGridValue(height);
+    updateElement(elementId, { width: snappedWidth, height: snappedHeight });
+  };
+
   const deleteElement = (elementId: string) => {
     const updatedSlides = slides.map(slide => ({
       ...slide,
@@ -265,6 +600,14 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
     }));
     setSlides(updatedSlides);
     setSelectedElement(null);
+    
+    // Save to history
+    saveState({
+      slides: updatedSlides,
+      currentSlideIndex,
+      selectedElement: null,
+      presentationTitle
+    });
   };
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -288,8 +631,107 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
       const updatedSlides = [...slides];
       updatedSlides[currentSlideIndex].elements.push(newElement);
       setSlides(updatedSlides);
+      
+      // Save to history
+      saveState({
+        slides: updatedSlides,
+        currentSlideIndex,
+        selectedElement,
+        presentationTitle
+      });
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleImageEdit = (elementId: string) => {
+    setEditingImageId(elementId);
+  };
+
+  const handleImageSave = (editedImageUrl: string) => {
+    if (editingImageId) {
+      updateElement(editingImageId, { content: editedImageUrl });
+      setEditingImageId(null);
+    }
+  };
+
+  const handleImageReplace = (file: File) => {
+    if (!editingImageId) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const imageUrl = e.target?.result as string;
+      updateElement(editingImageId, { content: imageUrl });
+      setEditingImageId(null);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Helper function to parse HTML and extract text with formatting
+  const parseHtmlToTextOptions = (html: string, defaultStyle: EditorElement['style']) => {
+    if (!html) {
+      return {
+        text: '',
+        options: {
+          fontSize: defaultStyle?.fontSize || 18,
+          bold: defaultStyle?.bold || false,
+          italic: defaultStyle?.italic || false,
+          underline: defaultStyle?.underline || false,
+          align: defaultStyle?.align || 'left',
+          color: defaultStyle?.color?.replace('#', '') || '000000',
+        }
+      };
+    }
+
+    // Create a temporary DOM element to parse HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    
+    // Extract plain text
+    const text = tempDiv.textContent || tempDiv.innerText || '';
+    
+    // Detect formatting from HTML
+    const hasBold = tempDiv.querySelector('strong, b') !== null || html.includes('<strong>') || html.includes('<b>');
+    const hasItalic = tempDiv.querySelector('em, i') !== null || html.includes('<em>') || html.includes('<i>');
+    const hasUnderline = tempDiv.querySelector('u') !== null || html.includes('<u>');
+    
+    // Extract color from style attribute or color tag
+    let color = defaultStyle?.color?.replace('#', '') || '000000';
+    const colorMatch = html.match(/color:\s*([^;]+)/i) || html.match(/<span[^>]*color:\s*([^;]+)/i);
+    if (colorMatch) {
+      const colorValue = colorMatch[1].trim();
+      if (colorValue.startsWith('#')) {
+        color = colorValue.substring(1);
+      } else if (colorValue.startsWith('rgb')) {
+        // Convert RGB to hex (simplified)
+        const rgbMatch = colorValue.match(/\d+/g);
+        if (rgbMatch && rgbMatch.length >= 3) {
+          const r = parseInt(rgbMatch[0]).toString(16).padStart(2, '0');
+          const g = parseInt(rgbMatch[1]).toString(16).padStart(2, '0');
+          const b = parseInt(rgbMatch[2]).toString(16).padStart(2, '0');
+          color = r + g + b;
+        }
+      }
+    }
+    
+    // Detect alignment
+    let align: 'left' | 'center' | 'right' = defaultStyle?.align || 'left';
+    if (html.includes('text-align:center') || html.includes('text-align: center')) {
+      align = 'center';
+    } else if (html.includes('text-align:right') || html.includes('text-align: right')) {
+      align = 'right';
+    }
+
+    return {
+      text,
+      options: {
+        fontSize: defaultStyle?.fontSize || 18,
+        bold: hasBold || defaultStyle?.bold || false,
+        italic: hasItalic || defaultStyle?.italic || false,
+        underline: hasUnderline || defaultStyle?.underline || false,
+        align,
+        color,
+      }
+    };
   };
 
   const generatePowerPoint = async () => {
@@ -343,19 +785,85 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
         let yPos = 2;
         for (const element of slide.elements) {
           if (element.type === 'text') {
-            pptxSlide.addText(element.content, {
-              x: element.x / 100 * 10,
-              y: yPos,
-              w: (element.width / 100 * 10),
-              h: (element.height / 100 * 10),
-              fontSize: element.style?.fontSize || 18,
-              bold: element.style?.bold || false,
-              italic: element.style?.italic || false,
-              underline: element.style?.underline || false,
-              align: element.style?.align || 'left',
-              color: element.style?.color || '000000'
-            });
+            // Use HTML content if available, otherwise use plain text
+            const htmlContent = element.htmlContent || element.content || '';
+            const { text, options } = parseHtmlToTextOptions(htmlContent, element.style);
+            
+            // Handle bullet lists
+            if (htmlContent.includes('<ul>') || htmlContent.includes('<ol>')) {
+              const listItems: string[] = [];
+              const tempDiv = document.createElement('div');
+              tempDiv.innerHTML = htmlContent;
+              const listElements = tempDiv.querySelectorAll('li');
+              listElements.forEach(li => listItems.push(li.textContent || ''));
+              
+              if (listItems.length > 0) {
+                pptxSlide.addText(listItems, {
+                  x: element.x / 100 * 10,
+                  y: yPos,
+                  w: (element.width / 100 * 10),
+                  h: (element.height / 100 * 10),
+                  bullet: htmlContent.includes('<ul>'),
+                  fontSize: options.fontSize,
+                  bold: options.bold,
+                  italic: options.italic,
+                  underline: options.underline,
+                  align: options.align,
+                  color: options.color
+                });
+              }
+            } else {
+              pptxSlide.addText(text, {
+                x: element.x / 100 * 10,
+                y: yPos,
+                w: (element.width / 100 * 10),
+                h: (element.height / 100 * 10),
+                fontSize: options.fontSize,
+                bold: options.bold,
+                italic: options.italic,
+                underline: options.underline,
+                align: options.align,
+                color: options.color
+              });
+            }
             yPos += (element.height / 100 * 10) + 0.3;
+          } else if (element.type === 'table' && element.tableData) {
+            // Handle tables
+            try {
+              const tableRows: any[] = [];
+              element.tableData.cells.forEach((row, rowIndex) => {
+                const tableRow: any[] = [];
+                row.forEach(cell => {
+                  tableRow.push({
+                    text: cell || '',
+                    options: {
+                      fill: element.tableData?.headerRow && rowIndex === 0 ? 'f0f0f0' : 'ffffff',
+                      color: '363636',
+                      align: 'left',
+                      valign: 'middle'
+                    }
+                  });
+                });
+                tableRows.push(tableRow);
+              });
+
+              pptxSlide.addTable(tableRows, {
+                x: element.x / 100 * 10,
+                y: yPos,
+                w: (element.width / 100 * 10),
+                h: (element.height / 100 * 10),
+                border: {
+                  type: 'solid',
+                  color: element.tableData.borderColor?.replace('#', '') || 'd1d5db',
+                  pt: element.tableData.borderWidth || 1
+                },
+                colW: (element.width / 100 * 10) / element.tableData.cols,
+                rowH: (element.height / 100 * 10) / element.tableData.rows
+              });
+              yPos += (element.height / 100 * 10) + 0.3;
+            } catch (tableError) {
+              console.error('Error adding table:', tableError);
+            }
           } else if (element.type === 'image' && element.content.startsWith('data:')) {
             // Handle base64 images
             try {
@@ -459,19 +967,85 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
         let yPos = 2;
         for (const element of slide.elements) {
           if (element.type === 'text') {
-            pptxSlide.addText(element.content, {
-              x: element.x / 100 * 10,
-              y: yPos,
-              w: (element.width / 100 * 10),
-              h: (element.height / 100 * 10),
-              fontSize: element.style?.fontSize || 18,
-              bold: element.style?.bold || false,
-              italic: element.style?.italic || false,
-              underline: element.style?.underline || false,
-              align: element.style?.align || 'left',
-              color: element.style?.color || '000000'
-            });
+            // Use HTML content if available, otherwise use plain text
+            const htmlContent = element.htmlContent || element.content || '';
+            const { text, options } = parseHtmlToTextOptions(htmlContent, element.style);
+            
+            // Handle bullet lists
+            if (htmlContent.includes('<ul>') || htmlContent.includes('<ol>')) {
+              const listItems: string[] = [];
+              const tempDiv = document.createElement('div');
+              tempDiv.innerHTML = htmlContent;
+              const listElements = tempDiv.querySelectorAll('li');
+              listElements.forEach(li => listItems.push(li.textContent || ''));
+              
+              if (listItems.length > 0) {
+                pptxSlide.addText(listItems, {
+                  x: element.x / 100 * 10,
+                  y: yPos,
+                  w: (element.width / 100 * 10),
+                  h: (element.height / 100 * 10),
+                  bullet: htmlContent.includes('<ul>'),
+                  fontSize: options.fontSize,
+                  bold: options.bold,
+                  italic: options.italic,
+                  underline: options.underline,
+                  align: options.align,
+                  color: options.color
+                });
+              }
+            } else {
+              pptxSlide.addText(text, {
+                x: element.x / 100 * 10,
+                y: yPos,
+                w: (element.width / 100 * 10),
+                h: (element.height / 100 * 10),
+                fontSize: options.fontSize,
+                bold: options.bold,
+                italic: options.italic,
+                underline: options.underline,
+                align: options.align,
+                color: options.color
+              });
+            }
             yPos += (element.height / 100 * 10) + 0.3;
+          } else if (element.type === 'table' && element.tableData) {
+            // Handle tables
+            try {
+              const tableRows: any[] = [];
+              element.tableData.cells.forEach((row, rowIndex) => {
+                const tableRow: any[] = [];
+                row.forEach(cell => {
+                  tableRow.push({
+                    text: cell || '',
+                    options: {
+                      fill: element.tableData?.headerRow && rowIndex === 0 ? 'f0f0f0' : 'ffffff',
+                      color: '363636',
+                      align: 'left',
+                      valign: 'middle'
+                    }
+                  });
+                });
+                tableRows.push(tableRow);
+              });
+
+              pptxSlide.addTable(tableRows, {
+                x: element.x / 100 * 10,
+                y: yPos,
+                w: (element.width / 100 * 10),
+                h: (element.height / 100 * 10),
+                border: {
+                  type: 'solid',
+                  color: element.tableData.borderColor?.replace('#', '') || 'd1d5db',
+                  pt: element.tableData.borderWidth || 1
+                },
+                colW: (element.width / 100 * 10) / element.tableData.cols,
+                rowH: (element.height / 100 * 10) / element.tableData.rows
+              });
+              yPos += (element.height / 100 * 10) + 0.3;
+            } catch (tableError) {
+              console.error('Error adding table:', tableError);
+            }
           } else if (element.type === 'image' && element.content.startsWith('data:')) {
             try {
               const base64Data = element.content.split(',')[1];
@@ -534,6 +1108,34 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
     }
   };
 
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        const state = undoHistory();
+        if (state) {
+          setSlides(state.slides);
+          setCurrentSlideIndex(state.currentSlideIndex);
+          setSelectedElement(state.selectedElement);
+          setPresentationTitle(state.presentationTitle);
+        }
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        const state = redoHistory();
+        if (state) {
+          setSlides(state.slides);
+          setCurrentSlideIndex(state.currentSlideIndex);
+          setSelectedElement(state.selectedElement);
+          setPresentationTitle(state.presentationTitle);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undoHistory, redoHistory]);
+
   if (!currentSlide) {
     return <div>Loading editor...</div>;
   }
@@ -553,7 +1155,17 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
             </label>
             <Input
               value={presentationTitle}
-              onChange={(e) => setPresentationTitle(e.target.value)}
+              onChange={(e) => {
+                const newTitle = e.target.value;
+                setPresentationTitle(newTitle);
+                // Save to history
+                saveState({
+                  slides,
+                  currentSlideIndex,
+                  selectedElement,
+                  presentationTitle: newTitle
+                });
+              }}
               className="w-full"
               placeholder="Enter presentation title..."
             />
@@ -579,17 +1191,59 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
                         {slide.elements.length} elements
                       </p>
                     </div>
-                    {slides.length > 1 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteSlide(index);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                    {index === currentSlideIndex && (
+                      <div className="flex items-center space-x-1">
+                        {index > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              moveSlide(index, index - 1);
+                            }}
+                            title="Move up"
+                          >
+                            ↑
+                          </Button>
+                        )}
+                        {index < slides.length - 1 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              moveSlide(index, index + 1);
+                            }}
+                            title="Move down"
+                          >
+                            ↓
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            duplicateSlide(index);
+                          }}
+                          title="Duplicate"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                        {slides.length > 1 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteSlide(index);
+                            }}
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </CardContent>
@@ -597,14 +1251,24 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
             ))}
           </div>
 
-          <Button
-            onClick={addSlide}
-            className="w-full mt-4"
-            variant="outline"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Slide
-          </Button>
+          <div className="space-y-2 mt-4">
+            <Button
+              onClick={addSlide}
+              className="w-full"
+              variant="outline"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Slide
+            </Button>
+            <Button
+              onClick={() => setShowTemplates(true)}
+              className="w-full"
+              variant="outline"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Apply Template
+            </Button>
+          </div>
         </div>
 
         {/* Tools */}
@@ -626,6 +1290,15 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
                 <Type className="h-4 w-4 mr-2" />
                 Add Text
               </Button>
+              <Button
+                onClick={addTableElement}
+                className="w-full"
+                variant="outline"
+                size="sm"
+              >
+                <Type className="h-4 w-4 mr-2" />
+                Insert Table
+              </Button>
             </TabsContent>
             
             <TabsContent value="media" className="space-y-2">
@@ -645,6 +1318,15 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
                 onChange={handleImageUpload}
                 className="hidden"
               />
+              <Button
+                onClick={addChartElement}
+                className="w-full"
+                variant="outline"
+                size="sm"
+              >
+                <BarChart3 className="h-4 w-4 mr-2" />
+                Insert Chart
+              </Button>
             </TabsContent>
             
             <TabsContent value="shapes" className="space-y-2">
@@ -713,6 +1395,54 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
                 )}
               </div>
               <Button
+                onClick={() => {
+                  const state = undoHistory();
+                  if (state) {
+                    setSlides(state.slides);
+                    setCurrentSlideIndex(state.currentSlideIndex);
+                    setSelectedElement(state.selectedElement);
+                    setPresentationTitle(state.presentationTitle);
+                  }
+                }}
+                variant="outline"
+                size="sm"
+                disabled={!canUndo}
+                title="Undo (Ctrl+Z)"
+              >
+                ↶ Undo
+              </Button>
+              <Button
+                onClick={() => {
+                  const state = redoHistory();
+                  if (state) {
+                    setSlides(state.slides);
+                    setCurrentSlideIndex(state.currentSlideIndex);
+                    setSelectedElement(state.selectedElement);
+                    setPresentationTitle(state.presentationTitle);
+                  }
+                }}
+                variant="outline"
+                size="sm"
+                disabled={!canRedo}
+                title="Redo (Ctrl+Y)"
+              >
+                ↷ Redo
+              </Button>
+              <Button
+                onClick={() => setShowGrid(!showGrid)}
+                variant={showGrid ? 'default' : 'outline'}
+                size="sm"
+              >
+                Grid
+              </Button>
+              <Button
+                onClick={() => setSnapToGrid(!snapToGrid)}
+                variant={snapToGrid ? 'default' : 'outline'}
+                size="sm"
+              >
+                Snap
+              </Button>
+              <Button
                 onClick={savePresentation}
                 variant="outline"
                 size="sm"
@@ -734,18 +1464,58 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
         </div>
 
         {/* Canvas */}
-        <div className="flex-1 p-8 overflow-auto">
-          <div className="max-w-4xl mx-auto">
-            <Card className="aspect-video bg-white shadow-lg">
-              <CardContent className="p-8 h-full relative">
-                {currentSlide.elements.map((element) => (
+        <div className="flex-1 p-8 overflow-auto bg-gray-100">
+          <div className="max-w-5xl mx-auto">
+            <Card className="aspect-video bg-white shadow-2xl border-2 border-gray-300">
+              <CardContent className="p-4 sm:p-6 md:p-8 h-full relative overflow-visible">
+                {/* Grid Overlay */}
+                {showGrid && (
+                  <div 
+                    className="absolute inset-0 pointer-events-none z-0"
+                    style={{
+                      backgroundImage: `
+                        linear-gradient(to right, rgba(0,0,0,0.1) 1px, transparent 1px),
+                        linear-gradient(to bottom, rgba(0,0,0,0.1) 1px, transparent 1px)
+                      `,
+                      backgroundSize: `${gridSize}px ${gridSize}px`
+                    }}
+                  />
+                )}
+
+                {/* Alignment Guides */}
+                {alignmentGuides.x !== undefined && (
+                  <div
+                    className="absolute top-0 bottom-0 w-0.5 bg-blue-500 pointer-events-none z-50"
+                    style={{ left: `${alignmentGuides.x}px` }}
+                  />
+                )}
+                {alignmentGuides.y !== undefined && (
+                  <div
+                    className="absolute left-0 right-0 h-0.5 bg-blue-500 pointer-events-none z-50"
+                    style={{ top: `${alignmentGuides.y}px` }}
+                  />
+                )}
+
+                {/* Empty State */}
+                {(!currentSlide || !currentSlide.elements || currentSlide.elements.length === 0) && (
+                  <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                    <div className="text-center">
+                      <Type className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-lg font-medium">Empty Slide</p>
+                      <p className="text-sm mt-2">Click "Add Text" or "Upload Image" to add content</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Slide Elements */}
+                {currentSlide && currentSlide.elements && currentSlide.elements.map((element) => (
                   <div
                     key={element.id}
-                    className={`absolute border-2 ${
+                    className={`absolute border-2 z-10 ${
                       selectedElement === element.id
-                        ? 'border-blue-500'
+                        ? 'border-blue-500 shadow-lg'
                         : 'border-transparent hover:border-gray-300'
-                    } cursor-pointer`}
+                    } ${selectedElement === element.id ? 'cursor-move' : 'cursor-pointer'}`}
                     style={{
                       left: `${element.x}px`,
                       top: `${element.y}px`,
@@ -753,55 +1523,476 @@ const PowerPointEditor: React.FC<PowerPointEditorProps> = ({
                       height: `${element.height}px`,
                     }}
                     onClick={() => setSelectedElement(element.id)}
+                    onMouseDown={(e) => {
+                      if (selectedElement !== element.id) return;
+                      e.preventDefault();
+                      const startX = e.clientX;
+                      const startY = e.clientY;
+                      const startElementX = element.x;
+                      const startElementY = element.y;
+
+                      const handleMouseMove = (moveEvent: MouseEvent) => {
+                        const deltaX = moveEvent.clientX - startX;
+                        const deltaY = moveEvent.clientY - startY;
+                        const newX = startElementX + deltaX;
+                        const newY = startElementY + deltaY;
+                        handleElementDrag(element.id, { x: newX, y: newY });
+                      };
+
+                      const handleMouseUp = () => {
+                        document.removeEventListener('mousemove', handleMouseMove);
+                        document.removeEventListener('mouseup', handleMouseUp);
+                        handleElementDragEnd();
+                      };
+
+                      document.addEventListener('mousemove', handleMouseMove);
+                      document.addEventListener('mouseup', handleMouseUp);
+                    }}
                   >
-                    {element.type === 'text' && (
-                      <div
-                        className="w-full h-full p-2"
-                        style={{
-                          fontSize: `${element.style.fontSize}px`,
-                          fontFamily: element.style.fontFamily,
-                          color: element.style.color,
-                          backgroundColor: element.style.backgroundColor,
-                          fontWeight: element.style.bold ? 'bold' : 'normal',
-                          fontStyle: element.style.italic ? 'italic' : 'normal',
-                          textDecoration: element.style.underline ? 'underline' : 'none',
-                          textAlign: element.style.align || 'left',
-                        }}
-                        contentEditable
-                        onBlur={(e) => {
-                          updateElement(element.id, { content: e.currentTarget.textContent || '' });
-                        }}
-                        suppressContentEditableWarning
-                      >
-                        {element.content}
+                      {/* Resize Handles */}
+                      {selectedElement === element.id && (
+                        <>
+                          {/* Corner handles */}
+                          <div
+                            className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 border border-white rounded cursor-nwse-resize drag-handle"
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              const startX = e.clientX;
+                              const startY = e.clientY;
+                              const startWidth = element.width;
+                              const startHeight = element.height;
+                              const startElementX = element.x;
+                              const startElementY = element.y;
+
+                              const handleMouseMove = (moveEvent: MouseEvent) => {
+                                const deltaX = moveEvent.clientX - startX;
+                                const deltaY = moveEvent.clientY - startY;
+                                const newWidth = Math.max(20, startWidth - deltaX);
+                                const newHeight = Math.max(20, startHeight - deltaY);
+                                const newX = startElementX + (startWidth - newWidth);
+                                const newY = startElementY + (startHeight - newHeight);
+                                updateElement(element.id, { width: newWidth, height: newHeight, x: newX, y: newY });
+                              };
+
+                              const handleMouseUp = () => {
+                                document.removeEventListener('mousemove', handleMouseMove);
+                                document.removeEventListener('mouseup', handleMouseUp);
+                              };
+
+                              document.addEventListener('mousemove', handleMouseMove);
+                              document.addEventListener('mouseup', handleMouseUp);
+                            }}
+                          />
+                          <div
+                            className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 border border-white rounded cursor-nesw-resize drag-handle"
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              const startX = e.clientX;
+                              const startY = e.clientY;
+                              const startWidth = element.width;
+                              const startHeight = element.height;
+                              const startElementY = element.y;
+
+                              const handleMouseMove = (moveEvent: MouseEvent) => {
+                                const deltaX = moveEvent.clientX - startX;
+                                const deltaY = moveEvent.clientY - startY;
+                                const newWidth = Math.max(20, startWidth + deltaX);
+                                const newHeight = Math.max(20, startHeight - deltaY);
+                                const newY = startElementY + (startHeight - newHeight);
+                                updateElement(element.id, { width: newWidth, height: newHeight, y: newY });
+                              };
+
+                              const handleMouseUp = () => {
+                                document.removeEventListener('mousemove', handleMouseMove);
+                                document.removeEventListener('mouseup', handleMouseUp);
+                              };
+
+                              document.addEventListener('mousemove', handleMouseMove);
+                              document.addEventListener('mouseup', handleMouseUp);
+                            }}
+                          />
+                          <div
+                            className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 border border-white rounded cursor-nesw-resize drag-handle"
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              const startX = e.clientX;
+                              const startY = e.clientY;
+                              const startWidth = element.width;
+                              const startHeight = element.height;
+                              const startElementX = element.x;
+
+                              const handleMouseMove = (moveEvent: MouseEvent) => {
+                                const deltaX = moveEvent.clientX - startX;
+                                const deltaY = moveEvent.clientY - startY;
+                                const newWidth = Math.max(20, startWidth - deltaX);
+                                const newHeight = Math.max(20, startHeight + deltaY);
+                                const newX = startElementX + (startWidth - newWidth);
+                                updateElement(element.id, { width: newWidth, height: newHeight, x: newX });
+                              };
+
+                              const handleMouseUp = () => {
+                                document.removeEventListener('mousemove', handleMouseMove);
+                                document.removeEventListener('mouseup', handleMouseUp);
+                              };
+
+                              document.addEventListener('mousemove', handleMouseMove);
+                              document.addEventListener('mouseup', handleMouseUp);
+                            }}
+                          />
+                          <div
+                            className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 border border-white rounded cursor-nwse-resize drag-handle"
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              const startX = e.clientX;
+                              const startY = e.clientY;
+                              const startWidth = element.width;
+                              const startHeight = element.height;
+
+                              const handleMouseMove = (moveEvent: MouseEvent) => {
+                                const deltaX = moveEvent.clientX - startX;
+                                const deltaY = moveEvent.clientY - startY;
+                                const newWidth = Math.max(20, startWidth + deltaX);
+                                const newHeight = Math.max(20, startHeight + deltaY);
+                                updateElement(element.id, { width: newWidth, height: newHeight });
+                              };
+
+                              const handleMouseUp = () => {
+                                document.removeEventListener('mousemove', handleMouseMove);
+                                document.removeEventListener('mouseup', handleMouseUp);
+                              };
+
+                              document.addEventListener('mousemove', handleMouseMove);
+                              document.addEventListener('mouseup', handleMouseUp);
+                            }}
+                          />
+                          {/* Edge handles */}
+                          <div
+                            className="absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-blue-500 border border-white rounded cursor-ns-resize drag-handle"
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              const startY = e.clientY;
+                              const startHeight = element.height;
+                              const startElementY = element.y;
+
+                              const handleMouseMove = (moveEvent: MouseEvent) => {
+                                const deltaY = moveEvent.clientY - startY;
+                                const newHeight = Math.max(20, startHeight - deltaY);
+                                const newY = startElementY + (startHeight - newHeight);
+                                updateElement(element.id, { height: newHeight, y: newY });
+                              };
+
+                              const handleMouseUp = () => {
+                                document.removeEventListener('mousemove', handleMouseMove);
+                                document.removeEventListener('mouseup', handleMouseUp);
+                              };
+
+                              document.addEventListener('mousemove', handleMouseMove);
+                              document.addEventListener('mouseup', handleMouseUp);
+                            }}
+                          />
+                          <div
+                            className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-blue-500 border border-white rounded cursor-ns-resize drag-handle"
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              const startY = e.clientY;
+                              const startHeight = element.height;
+
+                              const handleMouseMove = (moveEvent: MouseEvent) => {
+                                const deltaY = moveEvent.clientY - startY;
+                                const newHeight = Math.max(20, startHeight + deltaY);
+                                updateElement(element.id, { height: newHeight });
+                              };
+
+                              const handleMouseUp = () => {
+                                document.removeEventListener('mousemove', handleMouseMove);
+                                document.removeEventListener('mouseup', handleMouseUp);
+                              };
+
+                              document.addEventListener('mousemove', handleMouseMove);
+                              document.addEventListener('mouseup', handleMouseUp);
+                            }}
+                          />
+                          <div
+                            className="absolute -left-1 top-1/2 -translate-y-1/2 w-3 h-3 bg-blue-500 border border-white rounded cursor-ew-resize drag-handle"
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              const startX = e.clientX;
+                              const startWidth = element.width;
+                              const startElementX = element.x;
+
+                              const handleMouseMove = (moveEvent: MouseEvent) => {
+                                const deltaX = moveEvent.clientX - startX;
+                                const newWidth = Math.max(20, startWidth - deltaX);
+                                const newX = startElementX + (startWidth - newWidth);
+                                updateElement(element.id, { width: newWidth, x: newX });
+                              };
+
+                              const handleMouseUp = () => {
+                                document.removeEventListener('mousemove', handleMouseMove);
+                                document.removeEventListener('mouseup', handleMouseUp);
+                              };
+
+                              document.addEventListener('mousemove', handleMouseMove);
+                              document.addEventListener('mouseup', handleMouseUp);
+                            }}
+                          />
+                          <div
+                            className="absolute -right-1 top-1/2 -translate-y-1/2 w-3 h-3 bg-blue-500 border border-white rounded cursor-ew-resize drag-handle"
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              const startX = e.clientX;
+                              const startWidth = element.width;
+
+                              const handleMouseMove = (moveEvent: MouseEvent) => {
+                                const deltaX = moveEvent.clientX - startX;
+                                const newWidth = Math.max(20, startWidth + deltaX);
+                                updateElement(element.id, { width: newWidth });
+                              };
+
+                              const handleMouseUp = () => {
+                                document.removeEventListener('mousemove', handleMouseMove);
+                                document.removeEventListener('mouseup', handleMouseUp);
+                              };
+
+                              document.addEventListener('mousemove', handleMouseMove);
+                              document.addEventListener('mouseup', handleMouseUp);
+                            }}
+                          />
+                        </>
+                      )}
+                      <div className="drag-handle w-full h-full overflow-visible">
+                        {element.type === 'text' && (
+                          <div
+                            className="w-full h-full p-1 min-h-[40px] bg-white rounded"
+                            style={{
+                              fontSize: `${element.style.fontSize || 16}px`,
+                              fontFamily: element.style.fontFamily || 'Arial',
+                              color: element.style.color || '#000000',
+                              backgroundColor: element.style.backgroundColor || 'transparent',
+                              fontWeight: element.style.bold ? 'bold' : 'normal',
+                              fontStyle: element.style.italic ? 'italic' : 'normal',
+                              textDecoration: element.style.underline ? 'underline' : 'none',
+                              textAlign: element.style.align || 'left',
+                            }}
+                          >
+                            <RichTextEditor
+                              content={element.htmlContent || element.content || ''}
+                              onChange={(html) => {
+                                // Extract plain text for backward compatibility
+                                const tempDiv = document.createElement('div');
+                                tempDiv.innerHTML = html;
+                                const plainText = tempDiv.textContent || tempDiv.innerText || '';
+                                
+                                updateElement(element.id, { 
+                                  content: plainText,
+                                  htmlContent: html
+                                });
+                              }}
+                              className="h-full w-full"
+                            />
+                          </div>
+                        )}
+                        
+                        {element.type === 'image' && (
+                          <div className="relative w-full h-full group">
+                            <img
+                              src={element.content}
+                              alt="Slide element"
+                              className="w-full h-full object-cover"
+                            />
+                            {selectedElement === element.id && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleImageEdit(element.id);
+                                }}
+                              >
+                                <ImageIcon className="h-4 w-4 mr-1" />
+                                Edit
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                        
+                        {element.type === 'table' && element.tableData && (
+                          <div className="relative w-full h-full group overflow-auto">
+                            <table
+                              className="w-full border-collapse"
+                              style={{
+                                borderColor: element.tableData.borderColor || '#d1d5db',
+                                borderWidth: `${element.tableData.borderWidth || 1}px`
+                              }}
+                            >
+                              <tbody>
+                                {element.tableData.cells.map((row, rowIndex) => (
+                                  <tr
+                                    key={rowIndex}
+                                    className={element.tableData?.headerRow && rowIndex === 0 ? 'bg-gray-100 font-semibold' : ''}
+                                  >
+                                    {row.map((cell, colIndex) => (
+                                      <td
+                                        key={`${rowIndex}-${colIndex}`}
+                                        className="border p-2"
+                                        style={{
+                                          borderColor: element.tableData?.borderColor || '#d1d5db',
+                                          borderWidth: `${element.tableData?.borderWidth || 1}px`,
+                                          padding: `${element.tableData?.cellPadding || 8}px`
+                                        }}
+                                      >
+                                        {cell || ''}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                            {selectedElement === element.id && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingTableId(element.id);
+                                }}
+                              >
+                                <Edit3 className="h-4 w-4 mr-1" />
+                                Edit
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                        
+                        {element.type === 'chart' && element.chartData && (
+                          <div className="relative w-full h-full group overflow-auto">
+                            <div className="w-full h-full p-4">
+                              {element.chartData.title && (
+                                <h4 className="text-center font-semibold mb-2">{element.chartData.title}</h4>
+                              )}
+                              <div className="w-full h-full">
+                                {/* Chart will be rendered here - using a placeholder for now */}
+                                <div className="w-full h-full flex items-center justify-center bg-gray-50 border-2 border-dashed border-gray-300 rounded">
+                                  <div className="text-center text-gray-400">
+                                    <BarChart3 className="h-12 w-12 mx-auto mb-2" />
+                                    <p>Chart Preview</p>
+                                    <p className="text-xs">Click Edit to configure</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            {selectedElement === element.id && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingChartId(element.id);
+                                }}
+                              >
+                                <Edit3 className="h-4 w-4 mr-1" />
+                                Edit
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                        
+                        {element.type === 'shape' && (
+                          <div
+                            className="w-full h-full"
+                            style={{
+                              backgroundColor: element.style.backgroundColor,
+                              borderRadius: element.content === 'circle' ? '50%' : '0',
+                              clipPath: element.content === 'triangle' ? 'polygon(50% 0%, 0% 100%, 100% 100%)' : 'none',
+                            }}
+                          />
+                        )}
                       </div>
-                    )}
-                    
-                    {element.type === 'image' && (
-                      <img
-                        src={element.content}
-                        alt="Slide element"
-                        className="w-full h-full object-cover"
-                      />
-                    )}
-                    
-                    {element.type === 'shape' && (
-                      <div
-                        className="w-full h-full"
-                        style={{
-                          backgroundColor: element.style.backgroundColor,
-                          borderRadius: element.content === 'circle' ? '50%' : '0',
-                          clipPath: element.content === 'triangle' ? 'polygon(50% 0%, 0% 100%, 100% 100%)' : 'none',
-                        }}
-                      />
-                    )}
-                  </div>
+                    </div>
                 ))}
               </CardContent>
             </Card>
           </div>
         </div>
       </div>
+
+      {/* Image Editor Modal */}
+      {editingImageId && currentSlide && (() => {
+        const imageElement = currentSlide.elements.find(el => el.id === editingImageId && el.type === 'image');
+        if (!imageElement) return null;
+        
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <CardContent className="p-0">
+                <ImageEditor
+                  imageUrl={imageElement.content}
+                  onSave={handleImageSave}
+                  onCancel={() => setEditingImageId(null)}
+                  onReplace={handleImageReplace}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
+
+      {/* Table Editor Modal */}
+      {editingTableId && currentSlide && (() => {
+        const tableElement = currentSlide.elements.find(el => el.id === editingTableId && el.type === 'table');
+        if (!tableElement || !tableElement.tableData) return null;
+        
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+              <CardContent className="p-0">
+                <TableEditor
+                  tableData={tableElement.tableData}
+                  onSave={handleTableSave}
+                  onCancel={() => setEditingTableId(null)}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
+
+      {/* Template Selector Modal */}
+      {showTemplates && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <CardContent className="p-0">
+              <SlideTemplates
+                onSelectTemplate={handleApplyTemplate}
+                onClose={() => setShowTemplates(false)}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Chart Editor Modal */}
+      {editingChartId && currentSlide && (() => {
+        const chartElement = currentSlide.elements.find(el => el.id === editingChartId && el.type === 'chart');
+        if (!chartElement || !chartElement.chartData) return null;
+        
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+              <CardContent className="p-0">
+                <ChartEditor
+                  chartData={chartElement.chartData}
+                  onSave={handleChartSave}
+                  onCancel={() => setEditingChartId(null)}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
     </div>
   );
 };
