@@ -848,3 +848,28 @@ export interface AppConfig {
     debounce_delay: number;
   };
 }
+
+// Visitor Tracking Types
+export interface VisitorLocation {
+  country?: string | null;
+  country_name?: string | null;
+  city?: string | null;
+  region?: string | null;
+  timezone?: string | null;
+}
+
+export interface VisitorTrackingRequest {
+  tool_id: string;
+  route_path: string;
+  user_id?: number | string | null;
+  public_id: string;
+  session_id: string;
+  timestamp: string;
+  referrer?: string | null;
+  location?: VisitorLocation | null;
+}
+
+export interface VisitorTrackingResponse {
+  success: boolean;
+  message: string;
+}

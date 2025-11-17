@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { environment } from '@/lib/environment';
+import GoogleSignInButton from './google-sign-in-button';
 
 interface LoginFormProps {
   onSwitchToRegister: () => void;
@@ -238,7 +239,18 @@ function LoginForm({ onSwitchToRegister }: LoginFormProps) {
           </Button>
         </form>
 
-        <div className="text-center">
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-border"></div>
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-card text-muted-foreground">Or continue with</span>
+          </div>
+        </div>
+
+        <GoogleSignInButton isLoading={isLoading} disabled={isLoading} />
+
+        <div className="text-center mt-6">
           <p className="text-sm text-muted-foreground">
             Don't have an account?{' '}
             <button

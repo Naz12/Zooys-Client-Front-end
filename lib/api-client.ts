@@ -25,7 +25,9 @@ import type {
   AsyncSummarizeRequest,
   AsyncSummarizeResponse,
   JobStatusResponse,
-  JobResultResponse
+  JobResultResponse,
+  VisitorTrackingRequest,
+  VisitorTrackingResponse
 } from './types/api';
 
 // API base URL - Include /api prefix to match backend
@@ -471,6 +473,70 @@ export class ApiClient {
         throw error;
       }
       throw new Error('Network error occurred');
+    }
+  }
+
+  // Visitor tracking method (silent failure - don't throw errors)
+  // Uses direct fetch to avoid verbose error logging from request method
+  async trackVisit(data: VisitorTrackingRequest): Promise<VisitorTrackingResponse | null> {
+    try {
+      const url = `${this.baseURL}/visitor-tracking`;
+      const token = this.token || this.getStoredToken();
+      
+      // Log what we're sending in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📤 Sending tracking data to backend:', {
+          url,
+          has_token: !!token,
+          user_id: data.user_id,
+          user_id_type: typeof data.user_id,
+          tool_id: data.tool_id,
+          public_id: data.public_id.substring(0, 8) + '...',
+        });
+      }
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(data),
+        // Use keepalive for better reliability
+        keepalive: true,
+      });
+
+      // Only log in development if there's an actual error
+      if (!response.ok) {
+        if (process.env.NODE_ENV === 'development') {
+          const errorText = await response.text().catch(() => '');
+          console.warn('⚠️ Visitor tracking failed:', {
+            status: response.status,
+            statusText: response.statusText,
+            message: errorText || 'No error message',
+            endpoint: '/visitor-tracking',
+          });
+        }
+        return null;
+      }
+
+      // Try to parse response, but don't fail if it's not JSON
+      try {
+        return await response.json();
+      } catch {
+        // If response is not JSON, that's okay - tracking succeeded
+        return { success: true, message: 'Visit tracked' };
+      }
+    } catch (error) {
+      // Network errors or other issues - silently fail
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('⚠️ Visitor tracking network error (non-critical):', {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          endpoint: '/visitor-tracking',
+        });
+      }
+      return null;
     }
   }
 }

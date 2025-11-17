@@ -21,6 +21,7 @@ interface AuthState {
 interface AuthContextType extends AuthState {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
+  loginWithToken: (token: string, userData: any) => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
   refreshToken: () => Promise<void>;
@@ -448,6 +449,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Login with token (for OAuth flows like Google Sign-In)
+  const loginWithToken = async (token: string, userData: any) => {
+    dispatch({ type: 'AUTH_START' });
+    
+    try {
+      // Store token
+      localStorage.setItem('auth_token', token);
+      
+      // Store user data
+      localStorage.setItem('auth_user', JSON.stringify(userData));
+
+      // Convert user data to match User interface
+      const user: User = {
+        id: String(userData.id),
+        name: userData.name,
+        email: userData.email,
+      };
+      
+      // Update state
+      dispatch({ 
+        type: 'AUTH_SUCCESS', 
+        payload: { user, token } 
+      });
+
+      // Set API client token
+      if (typeof window !== 'undefined') {
+        const { apiClient } = await import('@/lib/api-client');
+        apiClient.setToken(token);
+      }
+    } catch (error: any) {
+      const errorMessage = error?.userMessage || error?.message || 'Authentication failed.';
+      dispatch({ type: 'AUTH_FAILURE', payload: errorMessage });
+      throw error;
+    }
+  };
 
   // Clear error function
   const clearError = () => {
@@ -466,11 +502,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ...state,
     login,
     register,
+    loginWithToken,
     logout,
     clearError,
     refreshToken,
     isAuthRestored,
-  }), [state, login, register, logout, clearError, refreshToken, isAuthRestored]);
+  }), [state, login, register, loginWithToken, logout, clearError, refreshToken, isAuthRestored]);
 
   return (
     <AuthContext.Provider value={value}>

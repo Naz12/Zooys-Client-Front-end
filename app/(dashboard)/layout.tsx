@@ -4,6 +4,7 @@ import Sidebar from "@/components/sidebar";
 import Topbar from "@/components/topbar";
 import ProtectedRoute from "@/components/auth/protected-route";
 import { usePathname } from "next/navigation";
+import { useVisitorTracking } from "@/lib/hooks/use-visitor-tracking";
 
 export default function DashboardLayout({
   children,
@@ -12,6 +13,9 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const isEditorPage = pathname?.includes('/presentation/editor/');
+  
+  // Initialize visitor tracking
+  useVisitorTracking();
 
   return (
     <ProtectedRoute>
