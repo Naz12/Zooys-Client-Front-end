@@ -70,39 +70,34 @@ export interface ExtractionResponse {
 
 export interface JobStatusResponse {
   job_id: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  tool_type?: string;
+  input_type?: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
   stage: string;
   error: string | null;
-  tool_type: string;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ConversionResult {
   success: boolean;
+  job_id: string;
+  tool_type?: string;
+  input_type?: string;
   data: {
-    conversion_result: {
-      job_id: string;
-      status: 'completed' | 'failed';
-      progress: number;
-      stage: string;
-      created_at: number;
-      started_at: number;
-      completed_at: number;
-      error: string | null;
-      output_files: string[];
-      job_type: string;
-    };
-    converted_file: {
-      path: string;
-      url: string;
-      filename: string;
-    };
-    original_file: {
-      id: number;
-      filename: string | null;
-      size: number;
+    file_path: string;
+    file_url: string;
+    original_format: string;
+    target_format: string;
+    file_size: number;
+    pages?: number;
+    conversion_time?: number;
+    metadata?: {
+      quality?: string;
+      include_metadata?: boolean;
+      dpi?: number;
+      page_range?: string;
     };
   };
 }
@@ -181,29 +176,86 @@ export class FileConversionApiClient {
     // Use the dedicated upload API
     const response = await uploadApi.uploadSingleFile(file, undefined, metadata);
     
+    // Debug logging
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📤 Upload response structure:', {
+        hasResponse: !!response,
+        hasData: !!response?.data,
+        hasFileUpload: !!response?.file_upload,
+        responseKeys: response ? Object.keys(response) : [],
+        responseStructure: JSON.stringify(response, null, 2),
+        dataId: response?.data?.id,
+        fileUploadId: response?.file_upload?.id,
+      });
+    }
+    
+    // Check if response has the expected structure
+    if (!response) {
+      console.error('❌ Invalid upload response:', response);
+      throw new Error('Invalid response from upload API. Response is empty.');
+    }
+    
+    // The backend may return the file data in different structures
+    // Try to find the file ID in multiple possible locations
+    let fileId: string | number | undefined;
+    let fileData: any;
+    
+    // Check if response has file_upload object (backend may return this directly)
+    if (response.file_upload) {
+      fileData = response.file_upload;
+      fileId = fileData.id;
+    } 
+    // Otherwise check data object
+    else if (response.data) {
+      fileData = response.data;
+      fileId = fileData.id;
+    }
+    // If neither exists, the response structure is unexpected
+    else {
+      console.error('❌ Invalid upload response structure:', response);
+      throw new Error('Invalid response from upload API. Response structure is unexpected.');
+    }
+    
+    // Validate and parse the file ID
+    if (!fileId && fileId !== 0) {
+      console.error('❌ Missing file ID in response:', response);
+      throw new Error('File upload response is missing file ID.');
+    }
+    
+    const parsedId = typeof fileId === 'string' ? parseInt(fileId, 10) : fileId;
+    if (isNaN(parsedId)) {
+      console.error('❌ Invalid file ID format:', {
+        originalId: fileId,
+        idType: typeof fileId,
+        response: response,
+      });
+      throw new Error(`Invalid file ID format: ${fileId}. Expected a number.`);
+    }
+    
     // Convert to FileUploadResponse format expected by this API
+    // Handle both response structures: { data: {...} } or { file_upload: {...} }
     return {
-      success: response.success,
-      message: 'File uploaded successfully',
+      success: response.success ?? true,
+      message: response.message || 'File uploaded successfully',
       file_upload: {
-        id: parseInt(response.data.id),
-        user_id: 0, // Not available in response
-        original_name: response.data.original_filename,
-        stored_name: response.data.original_filename,
-        file_path: response.data.file_path,
-        mime_type: response.data.file_type,
-        file_size: response.data.file_size,
-        file_type: response.data.file_type,
+        id: parsedId,
+        user_id: fileData.user_id || 0,
+        original_name: fileData.original_name || fileData.original_filename || '',
+        stored_name: fileData.stored_name || fileData.original_filename || '',
+        file_path: fileData.file_path || '',
+        mime_type: fileData.mime_type || fileData.file_type || '',
+        file_size: fileData.file_size || 0,
+        file_type: fileData.file_type || '',
         metadata: {
-          uploaded_at: response.data.created_at,
+          uploaded_at: fileData.created_at || fileData.uploaded_at || new Date().toISOString(),
           client_ip: '',
           user_agent: null,
         },
-        is_processed: false,
-        created_at: response.data.created_at,
-        updated_at: response.data.created_at,
+        is_processed: fileData.is_processed || false,
+        created_at: fileData.created_at || new Date().toISOString(),
+        updated_at: fileData.updated_at || fileData.created_at || new Date().toISOString(),
       },
-      file_url: response.data.file_path,
+      file_url: response.file_url || fileData.file_path || '',
     };
   }
 
@@ -219,12 +271,12 @@ export class FileConversionApiClient {
 
   // Check conversion job status
   async getConversionStatus(jobId: string): Promise<JobStatusResponse> {
-    return apiClient.get<JobStatusResponse>(`/status/document_conversion/file?job_id=${jobId}`);
+    return apiClient.get<JobStatusResponse>(`/file-processing/convert/status?job_id=${jobId}`);
   }
 
   // Get conversion job result
   async getConversionResult(jobId: string): Promise<ConversionResult> {
-    return apiClient.get<ConversionResult>(`/result/document_conversion/file?job_id=${jobId}`);
+    return apiClient.get<ConversionResult>(`/file-processing/convert/result?job_id=${jobId}`);
   }
 
   // Check extraction job status
