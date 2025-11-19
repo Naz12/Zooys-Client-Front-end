@@ -62,13 +62,13 @@ function Sidebar() {
   ];
 
   const navItems = [
-    { label: "PDF Editor", href: "/pdf-editor", icon: <FileEdit size={18} /> },
     { label: "AI Chat", href: "/chat", icon: <MessageSquare size={18} /> },
     { label: "AI Writer", href: "/writer", icon: <PenTool size={18} /> },
     { label: "AI Math Solver", href: "/math-solver", icon: <Calculator size={18} /> },
     { label: "AI Flashcards", href: "/flashcards", icon: <BookOpen size={18} /> },
     { label: "AI Diagrams", href: "/diagrams", icon: <Network size={18} /> },
     { label: "AI Presentation", href: "/presentation", icon: <Presentation size={18} /> },
+    { label: "PDF Editor", href: "/pdf-editor", icon: <FileEdit size={18} /> },
     { label: "Convert File", href: "/convert-file", icon: <FileUp size={18} /> },
   ];
 

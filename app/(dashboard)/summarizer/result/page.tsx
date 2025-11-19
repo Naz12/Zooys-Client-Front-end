@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { summarizerApi } from "@/lib/api";
+import { summarizerApi, diagramApi, documentChatApi } from "@/lib/api";
 import { parseSummarizationResult } from "@/lib/result-parser";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/notifications";
@@ -19,10 +19,22 @@ import {
   Type,
   Copy,
   Download,
-  RefreshCw
+  RefreshCw,
+  MessageSquare,
+  Network,
+  Send,
+  AlertCircle,
+  RotateCw,
+  RotateCcw,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Minimize2
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import type { JobStatusResponse, JobResultResponse } from "@/lib/types/api";
+import type { DocumentChatRequest, DocumentChatResponse } from "@/lib/api";
 
 type ContentType = "youtube" | "pdf" | "audio" | "link" | "text";
 
@@ -49,6 +61,20 @@ export default function SummarizerResultPage() {
   const [stage, setStage] = useState<string>("");
   const [finalResult, setFinalResult] = useState<any>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Mind map state
+  const [mindMapImageUrl, setMindMapImageUrl] = useState<string | null>(null);
+  const [isGeneratingMindMap, setIsGeneratingMindMap] = useState(false);
+  const [mindMapError, setMindMapError] = useState<string | null>(null);
+  const [mindMapRotation, setMindMapRotation] = useState(0);
+  const [mindMapZoom, setMindMapZoom] = useState(100);
+  const [isMindMapFullscreen, setIsMindMapFullscreen] = useState(false);
+  
+  // Document chat state
+  const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isSendingChat, setIsSendingChat] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
 
   useEffect(() => {
     // Load data from sessionStorage
@@ -184,10 +210,16 @@ export default function SummarizerResultPage() {
               // Preserve transcript and bundle from resultData (YouTube videos)
               transcript: resultData.transcript || parsedResult.bundle?.article || parsedResult.bundle?.article_text,
               bundle: resultData.bundle || parsedResult.bundle,
+              // Include chapters, doc_id, and conversation_id from new response structure
+              chapters: resultData.chapters || parsedResult.chapters || [],
+              doc_id: resultData.doc_id || parsedResult.doc_id || null,
+              conversation_id: resultData.conversation_id || parsedResult.conversation_id || null,
               metadata: {
                 ...parsedResult.metadata,
                 ...resultData.metadata,
-                model_used: modelUsed
+                model_used: modelUsed,
+                chat_enabled: !!(resultData.doc_id || parsedResult.doc_id),
+                fallback_used: resultData.metadata?.fallback_used || parsedResult.metadata?.fallback_used || false
               },
               source_info: parsedResult.source_info,
               ai_result: parsedResult.ai_result,
@@ -317,7 +349,34 @@ export default function SummarizerResultPage() {
               
               <TabsContent value="chapter" className="mt-4">
                 <div className="p-4 bg-muted rounded-lg border max-h-96 overflow-y-auto">
-                  <p className="text-sm text-muted-foreground">Chapter feature coming soon...</p>
+                  {finalResult?.chapters && finalResult.chapters.length > 0 ? (
+                    <div className="space-y-3">
+                      {finalResult.chapters.map((chapter: any, index: number) => (
+                        <div key={index} className="pb-3 border-b last:border-b-0">
+                          <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-sm">
+                              {index + 1}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className="font-medium text-sm text-foreground">{chapter.title}</h4>
+                                {chapter.timestamp && (
+                                  <span className="text-xs text-muted-foreground bg-background px-2 py-0.5 rounded">
+                                    {chapter.timestamp}
+                                  </span>
+                                )}
+                              </div>
+                              {chapter.description && (
+                                <p className="text-sm text-muted-foreground">{chapter.description}</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No chapters available</p>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>
@@ -410,7 +469,34 @@ export default function SummarizerResultPage() {
               
               <TabsContent value="chapter" className="mt-4">
                 <div className="p-4 bg-muted rounded-lg border max-h-96 overflow-y-auto">
-                  <p className="text-sm text-muted-foreground">Chapter feature coming soon...</p>
+                  {finalResult?.chapters && finalResult.chapters.length > 0 ? (
+                    <div className="space-y-3">
+                      {finalResult.chapters.map((chapter: any, index: number) => (
+                        <div key={index} className="pb-3 border-b last:border-b-0">
+                          <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-sm">
+                              {index + 1}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className="font-medium text-sm text-foreground">{chapter.title}</h4>
+                                {chapter.timestamp && (
+                                  <span className="text-xs text-muted-foreground bg-background px-2 py-0.5 rounded">
+                                    {chapter.timestamp}
+                                  </span>
+                                )}
+                              </div>
+                              {chapter.description && (
+                                <p className="text-sm text-muted-foreground">{chapter.description}</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No chapters available</p>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>
@@ -421,6 +507,219 @@ export default function SummarizerResultPage() {
         return null;
     }
   };
+
+  // Initialize conversation ID from finalResult
+  useEffect(() => {
+    if (finalResult?.conversation_id) {
+      setConversationId(finalResult.conversation_id);
+    }
+  }, [finalResult]);
+
+  // Generate mind map
+  const handleGenerateMindMap = async () => {
+    if (!finalResult) return;
+
+    const articleText = finalResult.bundle?.article_text || 
+                       finalResult.bundle?.article || 
+                       finalResult.transcript || 
+                       finalResult.summary;
+
+    if (!articleText) {
+      showError("Error", "No article text available for mind map generation");
+      return;
+    }
+
+    // Validate article text length
+    const textToUse = articleText.trim();
+    if (textToUse.length < 50) {
+      showError("Error", "Article text is too short. Please ensure the document has sufficient content.");
+      return;
+    }
+
+    setIsGeneratingMindMap(true);
+    setMindMapError(null);
+    setMindMapImageUrl(null);
+    setMindMapRotation(0); // Reset rotation when generating new
+    setMindMapZoom(100); // Reset zoom when generating new
+    setIsMindMapFullscreen(false); // Exit fullscreen when generating new
+
+    try {
+      // Create a concise prompt - prefer summary if available, otherwise use article text
+      // Limit to reasonable length to avoid validation errors
+      const contentToUse = finalResult.summary 
+        ? finalResult.summary.substring(0, 1500)
+        : textToUse.substring(0, 1500);
+      
+      // Format prompt similar to diagrams page - clear and direct
+      const promptText = `Create a mind map showing the main topics and relationships from the following content:\n\n${contentToUse}`;
+
+      const response = await diagramApi.generate({
+        prompt: promptText.trim(),
+        diagram_type: "mindmap",
+        language: "en"
+      });
+
+      const responseData = (response as any).data || response;
+      const jobId = responseData.job_id || response.job_id;
+      const pollUrl = responseData.poll_url || response.poll_url;
+      const resultUrl = responseData.result_url || response.result_url;
+
+      if (jobId) {
+        // Poll for result
+        const poll = async () => {
+          try {
+            let statusResponse: any;
+            if (pollUrl) {
+              statusResponse = await diagramApi.getJobStatusByUrl(pollUrl);
+            } else {
+              statusResponse = await diagramApi.getJobStatus(jobId);
+            }
+
+            const statusData = (statusResponse as any).data || statusResponse;
+            if (statusData.status === 'completed') {
+              let resultResponse: any;
+              if (resultUrl) {
+                resultResponse = await diagramApi.getJobResultByUrl(resultUrl);
+              } else {
+                resultResponse = await diagramApi.getJobResult(jobId);
+              }
+
+              const resultData = (resultResponse as any).data || resultResponse;
+              const diagramData = resultData.data || resultData;
+
+              if (diagramData?.image_url) {
+                setMindMapImageUrl(diagramData.image_url);
+                showSuccess("Success", "Mind map generated successfully!");
+              } else {
+                setMindMapError("No image URL found in result");
+                showError("Error", "Failed to get mind map image");
+              }
+              setIsGeneratingMindMap(false);
+            } else if (statusData.status === 'failed') {
+              setMindMapError(statusData.error || "Generation failed");
+              showError("Error", statusData.error || "Mind map generation failed");
+              setIsGeneratingMindMap(false);
+            } else {
+              // Continue polling
+              setTimeout(poll, 2500);
+            }
+          } catch (error: any) {
+            console.error('Mind map polling error:', error);
+            
+            // Extract error message from API response
+            let errorMessage = "Polling failed";
+            
+            if (error?.response?.data) {
+              const errorData = error.response.data;
+              if (errorData.message) {
+                errorMessage = errorData.message;
+              } else if (errorData.error) {
+                errorMessage = errorData.error;
+              }
+            } else if (error instanceof Error) {
+              errorMessage = error.message;
+            }
+            
+            setMindMapError(errorMessage);
+            showError("Error", errorMessage);
+            setIsGeneratingMindMap(false);
+          }
+        };
+
+        poll();
+      } else {
+        setMindMapError("No job ID received");
+        setIsGeneratingMindMap(false);
+      }
+    } catch (error: any) {
+      console.error('Mind map generation error:', error);
+      
+      // Extract error message from API response
+      let errorMessage = "Failed to generate mind map";
+      
+      if (error?.response?.data) {
+        const errorData = error.response.data;
+        
+        // Handle validation errors (422)
+        if (error.response.status === 422) {
+          if (errorData.message) {
+            errorMessage = errorData.message;
+          } else if (errorData.error) {
+            errorMessage = errorData.error;
+          } else if (errorData.messages) {
+            // Laravel validation errors
+            const messages = errorData.messages;
+            if (typeof messages === 'object') {
+              const firstError = Object.values(messages)[0];
+              errorMessage = Array.isArray(firstError) ? firstError[0] : String(firstError);
+            } else {
+              errorMessage = String(messages);
+            }
+          } else if (typeof errorData === 'string') {
+            errorMessage = errorData;
+          }
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = errorData.error;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      setMindMapError(errorMessage);
+      showError("Error", errorMessage);
+      setIsGeneratingMindMap(false);
+    }
+  };
+
+  // Send chat message
+  const handleSendChat = async () => {
+    if (!chatInput.trim() || !finalResult?.doc_id) return;
+
+    setIsSendingChat(true);
+    const userMessage = chatInput.trim();
+    setChatInput("");
+
+    // Add user message to chat
+    setChatMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+
+    try {
+      const request: DocumentChatRequest = {
+        doc_id: finalResult.doc_id,
+        query: userMessage,
+        conversation_id: conversationId || undefined,
+        llm_model: "deepseek-chat",
+        max_tokens: 512,
+        top_k: 3
+      };
+
+      const response = await documentChatApi.chat(request);
+      const responseData = (response as any).data || response;
+
+      if (responseData.success) {
+        // Update conversation ID
+        if (responseData.conversation_id) {
+          setConversationId(responseData.conversation_id);
+        }
+
+        // Add assistant response
+        setChatMessages(prev => [...prev, { role: 'assistant', content: responseData.answer }]);
+      } else {
+        showError("Error", "Failed to get response");
+        setChatMessages(prev => prev.slice(0, -1)); // Remove user message on error
+      }
+    } catch (error) {
+      console.error('Chat error:', error);
+      showError("Error", error instanceof Error ? error.message : "Failed to send message");
+      setChatMessages(prev => prev.slice(0, -1)); // Remove user message on error
+    } finally {
+      setIsSendingChat(false);
+    }
+  };
+
+  // Check if chat is available
+  const isChatAvailable = finalResult?.doc_id && finalResult.doc_id !== null;
 
   const handleCopy = async (text: string) => {
     try {
@@ -598,14 +897,348 @@ export default function SummarizerResultPage() {
                   </TabsContent>
                   
                   <TabsContent value="mindmap" className="mt-4">
-                    <div className="p-4 bg-muted rounded-lg border min-h-[400px] flex items-center justify-center">
-                      <p className="text-sm text-muted-foreground">AI Mindmap feature coming soon...</p>
+                    <div className="space-y-4">
+                      {!mindMapImageUrl && !isGeneratingMindMap && (
+                        <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-4">
+                          <Network className="h-12 w-12 text-muted-foreground" />
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium text-foreground">
+                              Generate a mind map from this document
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Create a visual representation of the key concepts and relationships
+                            </p>
+                          </div>
+                          <Button
+                            onClick={handleGenerateMindMap}
+                            disabled={isGeneratingMindMap}
+                            className="mt-4"
+                          >
+                            {isGeneratingMindMap ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Generating...
+                              </>
+                            ) : (
+                              <>
+                                <Network className="mr-2 h-4 w-4" />
+                                Generate Mind Map
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      )}
+
+                      {isGeneratingMindMap && (
+                        <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-4">
+                          <Loader2 className="h-12 w-12 animate-spin text-muted-foreground" />
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium text-foreground">
+                              Generating your mind map...
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              This may take 30-120 seconds
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {mindMapError && (
+                        <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="h-4 w-4 text-destructive mt-0.5" />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-destructive">Error</p>
+                              <p className="text-xs text-destructive/80 mt-1">{mindMapError}</p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleGenerateMindMap}
+                            className="mt-3"
+                          >
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            Try Again
+                          </Button>
+                        </div>
+                      )}
+
+                      {mindMapImageUrl && (
+                        <>
+                          <div className="space-y-4">
+                            <div className="relative w-full bg-muted rounded-lg overflow-auto border border-border flex items-center justify-center min-h-[300px] max-h-[600px]">
+                              <img
+                                src={mindMapImageUrl}
+                                alt="Generated mind map"
+                                className="object-contain transition-transform duration-300 cursor-zoom-in"
+                                style={{ 
+                                  transform: `rotate(${mindMapRotation}deg) scale(${mindMapZoom / 100})`,
+                                  maxWidth: '100%',
+                                  maxHeight: '100%'
+                                }}
+                                onError={() => {
+                                  setMindMapError("Failed to load image");
+                                  showError("Error", "Failed to load mind map image");
+                                }}
+                                onClick={() => setIsMindMapFullscreen(true)}
+                              />
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const link = document.createElement("a");
+                                  link.href = mindMapImageUrl;
+                                  link.download = `mindmap-${Date.now()}.png`;
+                                  link.click();
+                                }}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setMindMapZoom(prev => Math.min(prev + 25, 300))}
+                                title="Zoom in"
+                              >
+                                <ZoomIn className="h-4 w-4 mr-2" />
+                                Zoom In
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setMindMapZoom(prev => Math.max(prev - 25, 25))}
+                                title="Zoom out"
+                              >
+                                <ZoomOut className="h-4 w-4 mr-2" />
+                                Zoom Out
+                              </Button>
+                              {mindMapZoom !== 100 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setMindMapZoom(100)}
+                                  title="Reset zoom"
+                                >
+                                  {mindMapZoom}%
+                                </Button>
+                              )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setMindMapRotation(prev => (prev - 90) % 360)}
+                                title="Rotate left 90°"
+                              >
+                                <RotateCcw className="h-4 w-4 mr-2" />
+                                Rotate Left
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setMindMapRotation(prev => (prev + 90) % 360)}
+                                title="Rotate right 90°"
+                              >
+                                <RotateCw className="h-4 w-4 mr-2" />
+                                Rotate Right
+                              </Button>
+                              {mindMapRotation !== 0 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setMindMapRotation(0)}
+                                  title="Reset rotation"
+                                >
+                                  Reset Rotate
+                                </Button>
+                              )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setIsMindMapFullscreen(true)}
+                                title="Fullscreen"
+                              >
+                                <Maximize2 className="h-4 w-4 mr-2" />
+                                Fullscreen
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleGenerateMindMap}
+                              >
+                                <RefreshCw className="h-4 w-4 mr-2" />
+                                Regenerate
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Fullscreen Modal */}
+                          {isMindMapFullscreen && (
+                            <div 
+                              className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
+                              onClick={() => setIsMindMapFullscreen(false)}
+                            >
+                              <div className="relative w-full h-full flex items-center justify-center">
+                                <img
+                                  src={mindMapImageUrl}
+                                  alt="Generated mind map - Fullscreen"
+                                  className="max-w-full max-h-full object-contain transition-transform duration-300"
+                                  style={{ 
+                                    transform: `rotate(${mindMapRotation}deg) scale(${mindMapZoom / 100})`
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="absolute top-4 right-4 bg-background/80 backdrop-blur-sm"
+                                  onClick={() => setIsMindMapFullscreen(false)}
+                                >
+                                  <Minimize2 className="h-4 w-4 mr-2" />
+                                  Exit Fullscreen
+                                </Button>
+                                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 bg-background/80 backdrop-blur-sm rounded-lg p-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setMindMapZoom(prev => Math.max(prev - 25, 25));
+                                    }}
+                                  >
+                                    <ZoomOut className="h-4 w-4" />
+                                  </Button>
+                                  <span className="px-3 py-1.5 text-sm flex items-center">
+                                    {mindMapZoom}%
+                                  </span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setMindMapZoom(prev => Math.min(prev + 25, 300));
+                                    }}
+                                  >
+                                    <ZoomIn className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setMindMapRotation(prev => (prev - 90) % 360);
+                                    }}
+                                  >
+                                    <RotateCcw className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setMindMapRotation(prev => (prev + 90) % 360);
+                                    }}
+                                  >
+                                    <RotateCw className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
                   </TabsContent>
                   
                   <TabsContent value="chat" className="mt-4">
-                    <div className="p-4 bg-muted rounded-lg border min-h-[400px] flex items-center justify-center">
-                      <p className="text-sm text-muted-foreground">AI Chat feature coming soon...</p>
+                    <div className="space-y-4">
+                      {!isChatAvailable ? (
+                        <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-4">
+                          <AlertCircle className="h-12 w-12 text-muted-foreground" />
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium text-foreground">
+                              Chat not available
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Document chat is only available when the document was processed with Document Intelligence.
+                              {finalResult?.metadata?.fallback_used && (
+                                <span className="block mt-2">
+                                  AI Manager fallback was used, so chat is not available for this document.
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Chat Messages */}
+                          <div className="p-4 bg-muted rounded-lg border min-h-[300px] max-h-[400px] overflow-y-auto space-y-4">
+                            {chatMessages.length === 0 ? (
+                              <div className="flex flex-col items-center justify-center h-full text-center space-y-2">
+                                <MessageSquare className="h-8 w-8 text-muted-foreground" />
+                                <p className="text-sm text-muted-foreground">
+                                  Start a conversation about this document
+                                </p>
+                              </div>
+                            ) : (
+                              chatMessages.map((message, index) => (
+                                <div
+                                  key={index}
+                                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                                >
+                                  <div
+                                    className={`max-w-[80%] rounded-lg p-3 ${
+                                      message.role === 'user'
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'bg-background border border-border'
+                                    }`}
+                                  >
+                                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                            {isSendingChat && (
+                              <div className="flex justify-start">
+                                <div className="bg-background border border-border rounded-lg p-3">
+                                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Chat Input */}
+                          <div className="flex gap-2">
+                            <Textarea
+                              value={chatInput}
+                              onChange={(e) => setChatInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handleSendChat();
+                                }
+                              }}
+                              placeholder="Ask a question about this document..."
+                              className="min-h-[60px] resize-none"
+                              rows={2}
+                              disabled={isSendingChat || !isChatAvailable}
+                            />
+                            <Button
+                              onClick={handleSendChat}
+                              disabled={!chatInput.trim() || isSendingChat || !isChatAvailable}
+                              className="self-end"
+                            >
+                              {isSendingChat ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Send className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </TabsContent>
                 </Tabs>

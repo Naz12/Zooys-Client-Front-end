@@ -27,6 +27,12 @@ import {
   Image as ImageIcon,
   CheckCircle2,
   AlertCircle,
+  RotateCw,
+  RotateCcw,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import type { JobStatusResponse, JobResultResponse } from "@/lib/types/api";
 
@@ -70,6 +76,9 @@ export default function DiagramsPage() {
   const [status, setStatus] = useState<string>("");
   const [stage, setStage] = useState<string>("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageRotation, setImageRotation] = useState(0);
+  const [imageZoom, setImageZoom] = useState(100);
+  const [isImageFullscreen, setIsImageFullscreen] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [pollUrl, setPollUrl] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
@@ -184,6 +193,9 @@ export default function DiagramsPage() {
 
     setIsGenerating(true);
     setImageUrl(null);
+    setImageRotation(0); // Reset rotation when generating new
+    setImageZoom(100); // Reset zoom when generating new
+    setIsImageFullscreen(false); // Exit fullscreen when generating new
     setError(null);
     setProgress(0);
     setStatus("");
@@ -398,65 +410,209 @@ export default function DiagramsPage() {
         {/* Right Side - Result Display */}
         <Card className="bg-card border border-border">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <ImageIcon className="h-5 w-5" />
-                Generated Diagram
-              </CardTitle>
-              {imageUrl && (
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCopy}
-                    title="Copy image URL"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleDownload}
-                    title="Download image"
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRegenerate}
-                    title="Regenerate"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-            </div>
+            <CardTitle className="flex items-center gap-2">
+              <ImageIcon className="h-5 w-5" />
+              Generated Diagram
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {imageUrl ? (
-              <div className="space-y-4">
-                <div className="relative w-full bg-muted rounded-lg overflow-hidden border border-border">
-                  <img
-                    src={imageUrl}
-                    alt="Generated diagram"
-                    className="w-full h-auto object-contain"
-                    onError={() => {
-                      setError("Failed to load image");
-                      showError("Error", "Failed to load diagram image");
-                    }}
-                  />
+              <>
+                <div className="space-y-4">
+                  <div className="relative w-full bg-muted rounded-lg overflow-auto border border-border flex items-center justify-center min-h-[300px] max-h-[600px]">
+                    <img
+                      src={imageUrl}
+                      alt="Generated diagram"
+                      className="object-contain transition-transform duration-300 cursor-zoom-in"
+                      style={{ 
+                        transform: `rotate(${imageRotation}deg) scale(${imageZoom / 100})`,
+                        maxWidth: '100%',
+                        maxHeight: '100%'
+                      }}
+                      onError={() => {
+                        setError("Failed to load image");
+                        showError("Error", "Failed to load diagram image");
+                      }}
+                      onClick={() => setIsImageFullscreen(true)}
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCopy}
+                      title="Copy image URL"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDownload}
+                      title="Download image"
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setImageZoom(prev => Math.min(prev + 25, 300))}
+                      title="Zoom in"
+                    >
+                      <ZoomIn className="h-4 w-4 mr-2" />
+                      Zoom In
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setImageZoom(prev => Math.max(prev - 25, 25))}
+                      title="Zoom out"
+                    >
+                      <ZoomOut className="h-4 w-4 mr-2" />
+                      Zoom Out
+                    </Button>
+                    {imageZoom !== 100 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setImageZoom(100)}
+                        title="Reset zoom"
+                      >
+                        {imageZoom}%
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setImageRotation(prev => (prev - 90) % 360)}
+                      title="Rotate left 90°"
+                    >
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Rotate Left
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setImageRotation(prev => (prev + 90) % 360)}
+                      title="Rotate right 90°"
+                    >
+                      <RotateCw className="h-4 w-4 mr-2" />
+                      Rotate Right
+                    </Button>
+                    {imageRotation !== 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setImageRotation(0)}
+                        title="Reset rotation"
+                      >
+                        Reset Rotate
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsImageFullscreen(true)}
+                      title="Fullscreen"
+                    >
+                      <Maximize2 className="h-4 w-4 mr-2" />
+                      Fullscreen
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRegenerate}
+                      title="Regenerate"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Regenerate
+                    </Button>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    <p>
+                      <strong>Type:</strong> {selectedDiagramType?.label || diagramType}
+                    </p>
+                    <p className="mt-1">
+                      <strong>Language:</strong>{" "}
+                      {LANGUAGES.find((l) => l.value === language)?.label || language}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  <p>
-                    <strong>Type:</strong> {selectedDiagramType?.label || diagramType}
-                  </p>
-                  <p className="mt-1">
-                    <strong>Language:</strong>{" "}
-                    {LANGUAGES.find((l) => l.value === language)?.label || language}
-                  </p>
-                </div>
-              </div>
+
+                {/* Fullscreen Modal */}
+                {isImageFullscreen && (
+                  <div 
+                    className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
+                    onClick={() => setIsImageFullscreen(false)}
+                  >
+                    <div className="relative w-full h-full flex items-center justify-center">
+                      <img
+                        src={imageUrl}
+                        alt="Generated diagram - Fullscreen"
+                        className="max-w-full max-h-full object-contain transition-transform duration-300"
+                        style={{ 
+                          transform: `rotate(${imageRotation}deg) scale(${imageZoom / 100})`
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="absolute top-4 right-4 bg-background/80 backdrop-blur-sm"
+                        onClick={() => setIsImageFullscreen(false)}
+                      >
+                        <Minimize2 className="h-4 w-4 mr-2" />
+                        Exit Fullscreen
+                      </Button>
+                      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 bg-background/80 backdrop-blur-sm rounded-lg p-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setImageZoom(prev => Math.max(prev - 25, 25));
+                          }}
+                        >
+                          <ZoomOut className="h-4 w-4" />
+                        </Button>
+                        <span className="px-3 py-1.5 text-sm flex items-center">
+                          {imageZoom}%
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setImageZoom(prev => Math.min(prev + 25, 300));
+                          }}
+                        >
+                          <ZoomIn className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setImageRotation(prev => (prev - 90) % 360);
+                          }}
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setImageRotation(prev => (prev + 90) % 360);
+                          }}
+                        >
+                          <RotateCw className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-4">
                 {isGenerating || isPolling ? (

@@ -389,7 +389,7 @@ export function InputStep() {
       </div>
 
       {/* Configuration Options */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="space-y-2">
           <Label htmlFor="language">Language</Label>
           <Select
@@ -433,6 +433,26 @@ export function InputStep() {
               <SelectItem value="Academic">Academic</SelectItem>
               <SelectItem value="Creative">Creative</SelectItem>
               <SelectItem value="Formal">Formal</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="detail_level">Detail Level</Label>
+          <Select
+            value={state.inputData.detail_level}
+            onValueChange={(value) => dispatch({
+              type: 'SET_INPUT_DATA',
+              payload: { detail_level: value as 'brief' | 'detailed' | 'comprehensive' }
+            })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="brief">Brief (1-2 sentences per subheader)</SelectItem>
+              <SelectItem value="detailed">Detailed (2-3 sentences per subheader)</SelectItem>
+              <SelectItem value="comprehensive">Comprehensive (3-4 sentences per subheader)</SelectItem>
             </SelectContent>
           </Select>
         </div>

@@ -4,17 +4,45 @@ import { BaseApiClient } from './base-api-client';
 
 /**
  * File upload response for single file
+ * Backend may return either structure:
+ * - { success: true, data: { id, ... } }
+ * - { success: true, file_upload: { id, ... } }
  */
 export interface SingleFileUploadResponse {
   success: boolean;
-  data: {
-    id: string;
-    original_filename: string;
+  message?: string;
+  data?: {
+    id: string | number;
+    original_filename?: string;
+    original_name?: string;
     file_size: number;
-    file_type: string;
-    file_path: string;
+    file_type?: string;
+    mime_type?: string;
+    file_path?: string;
     created_at: string;
   };
+  file_upload?: {
+    id: string | number;
+    original_name?: string;
+    original_filename?: string;
+    stored_name?: string;
+    file_size: number;
+    file_type?: string;
+    mime_type?: string;
+    file_path?: string;
+    created_at: string;
+    updated_at?: string;
+  };
+  file_url?: string;
+  // Also allow direct properties for flexibility
+  id?: string | number;
+  original_filename?: string;
+  original_name?: string;
+  file_size?: number;
+  file_type?: string;
+  mime_type?: string;
+  file_path?: string;
+  created_at?: string;
 }
 
 /**

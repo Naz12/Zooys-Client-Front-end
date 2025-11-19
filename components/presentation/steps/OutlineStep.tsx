@@ -179,9 +179,11 @@ export function OutlineStep() {
       // Use the current outline (edited or original)
       const outlineToUse = editableOutline || state.outline;
 
-      // Generate content with the outline
+      // Generate content with the outline, tone, and detail_level
       const response = await presentationApi.generateContent({
-        outline: outlineToUse
+        outline: outlineToUse,
+        tone: state.inputData.tone as 'Professional' | 'Casual' | 'Academic' | 'Creative' | 'Formal',
+        detail_level: state.inputData.detail_level
       });
 
       if (!response.success || !response.job_id) {

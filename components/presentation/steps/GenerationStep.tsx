@@ -217,8 +217,16 @@ export function GenerationStep() {
     dispatch({ type: 'SET_GENERATION_STATUS', payload: 'idle' });
     dispatch({
       type: 'SET_DOWNLOAD_DATA',
-      payload: { downloadUrl: null, powerpointFile: null }
+      payload: { 
+        downloadUrl: null, 
+        powerpointFile: null,
+        fileSize: null,
+        slideCount: null,
+        fileId: null
+      }
     });
+    // Also reset export job ID
+    dispatch({ type: 'SET_EXPORT_JOB_ID', payload: null });
   };
 
   const handleEditPresentation = () => {

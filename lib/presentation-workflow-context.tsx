@@ -20,6 +20,7 @@ export interface WorkflowState {
     language: string;
     tone: string;
     length: string;
+    detail_level: 'brief' | 'detailed' | 'comprehensive';
     model: string;
     file: File | null;
     url: string;
@@ -60,9 +61,9 @@ export type WorkflowAction =
   | { type: 'UPDATE_CONTENT'; payload: PresentationContent }
   | { type: 'SET_TEMPLATE_DATA'; payload: Record<string, PresentationTemplate> }
   | { type: 'SELECT_TEMPLATE'; payload: string }
-  | { type: 'SET_EXPORT_JOB_ID'; payload: string }
+  | { type: 'SET_EXPORT_JOB_ID'; payload: string | null }
   | { type: 'SET_GENERATION_STATUS'; payload: WorkflowState['generationStatus'] }
-  | { type: 'SET_DOWNLOAD_DATA'; payload: { downloadUrl: string; powerpointFile: string; fileSize: number; slideCount: number; fileId?: number } }
+  | { type: 'SET_DOWNLOAD_DATA'; payload: { downloadUrl: string | null; powerpointFile: string | null; fileSize: number | null; slideCount: number | null; fileId?: number | null } }
   | { type: 'RESET_WORKFLOW' }
   | { type: 'RESET_TO_STEP'; payload: number };
 
@@ -78,6 +79,7 @@ const initialState: WorkflowState = {
     language: 'English',
     tone: 'Professional',
     length: 'Medium',
+    detail_level: 'detailed',
     model: 'gpt-3.5-turbo',
     file: null,
     url: '',
@@ -167,13 +169,21 @@ function workflowReducer(state: WorkflowState, action: WorkflowAction): Workflow
         ...state, 
         selectedTemplate: action.payload,
         currentStep: 5,
-        error: null 
+        error: null,
+        // Reset generation status and download data when template changes
+        generationStatus: 'idle',
+        downloadUrl: null,
+        powerpointFile: null,
+        fileSize: null,
+        slideCount: null,
+        fileId: null,
+        exportJobId: null
       };
     
     case 'SET_EXPORT_JOB_ID':
       return {
         ...state,
-        exportJobId: action.payload,
+        exportJobId: action.payload || null,
         error: null
       };
     
@@ -187,6 +197,8 @@ function workflowReducer(state: WorkflowState, action: WorkflowAction): Workflow
     
     case 'SET_DOWNLOAD_DATA':
       console.log('SET_DOWNLOAD_DATA action received with payload:', action.payload);
+      // If all download data is null, reset to idle status
+      const isResetting = !action.payload.downloadUrl && !action.payload.powerpointFile;
       const newState = { 
         ...state, 
         downloadUrl: action.payload.downloadUrl,
@@ -194,7 +206,7 @@ function workflowReducer(state: WorkflowState, action: WorkflowAction): Workflow
         fileSize: action.payload.fileSize,
         slideCount: action.payload.slideCount,
         fileId: action.payload.fileId || null,
-        generationStatus: 'completed',
+        generationStatus: isResetting ? 'idle' : 'completed',
         isGenerating: false,
         error: null
       };

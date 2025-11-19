@@ -99,5 +99,9 @@ export {
   chatApi
 } from './ai-tools';
 
+// Export document chat API from api-client
+export { documentChatApi } from '../api-client';
+export type { DocumentChatRequest, DocumentChatResponse } from '../api-client';
+
 // Export types
 export type { ApiResponse } from './base-api-client';

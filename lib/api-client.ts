@@ -598,6 +598,7 @@ export const API_ENDPOINTS = {
   // AI Chat
   CHAT: '/chat',
   CHAT_HISTORY: '/chat/history',
+  DOCUMENT_CHAT: '/document/chat',
   
   // Chat Sessions
   CHAT_SESSIONS: '/chat/sessions',
@@ -1351,6 +1352,33 @@ export const chatSessionApi = {
   // Get conversation history
   getConversationHistory: (sessionId: number) =>
     apiClient.get<{ session_id: number; session_name: string; conversation: ChatMessage[]; total_messages: number }>(`${API_ENDPOINTS.CHAT_SESSIONS}/${sessionId}/history`),
+};
+
+// Document Chat API functions
+export interface DocumentChatRequest {
+  doc_id: string;
+  query: string;
+  conversation_id?: string;
+  llm_model?: string;
+  max_tokens?: number;
+  top_k?: number;
+}
+
+export interface DocumentChatResponse {
+  success: boolean;
+  conversation_id: string;
+  answer: string;
+  sources: Array<{
+    doc_id: string;
+    page: number;
+    score: number;
+  }>;
+  doc_id: string;
+}
+
+export const documentChatApi = {
+  chat: (request: DocumentChatRequest) =>
+    apiClient.post<DocumentChatResponse>(API_ENDPOINTS.DOCUMENT_CHAT, request),
 };
 
 // Flashcard API functions

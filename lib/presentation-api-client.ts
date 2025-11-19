@@ -80,6 +80,8 @@ export interface PresentationContent {
 
 export interface GenerateContentRequest {
   outline: PresentationOutline;
+  tone: 'Professional' | 'Casual' | 'Academic' | 'Creative' | 'Formal';
+  detail_level: 'brief' | 'detailed' | 'comprehensive';
 }
 
 export interface GenerateContentResponse {

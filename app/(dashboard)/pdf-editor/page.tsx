@@ -213,37 +213,56 @@ export default function PDFEditorPage() {
             }
           );
 
+          // Log response for debugging
+          if (process.env.NODE_ENV === 'development') {
+            console.log('📤 Upload response:', {
+              hasResponse: !!uploadResponse,
+              responseKeys: uploadResponse ? Object.keys(uploadResponse) : [],
+              hasData: !!(uploadResponse as any).data,
+              hasFileUpload: !!(uploadResponse as any).file_upload,
+              response: uploadResponse,
+            });
+          }
+
           let fileId: string | null = null;
           let filename: string = validFiles[0].name;
           let fileSize: number = validFiles[0].size;
           let fileType: string = validFiles[0].type || 'application/pdf';
           let uploadedAt: string = new Date().toISOString();
 
-          if (uploadResponse.data) {
-            const fileData = uploadResponse.data;
-            fileId = fileData.id?.toString() || null;
-            filename = fileData.original_filename || fileData.original_name || filename;
-            fileSize = fileData.file_size || fileSize;
-            fileType = fileData.file_type || fileData.mime_type || fileType;
-            uploadedAt = fileData.created_at || uploadedAt;
-          } else if (uploadResponse.file_upload) {
-            const fileData = uploadResponse.file_upload;
+          // Try multiple response structures
+          const response = uploadResponse as any;
+          
+          // Check for file_upload structure (most common backend response)
+          if (response.file_upload) {
+            const fileData = response.file_upload;
             fileId = fileData.id?.toString() || null;
             filename = fileData.original_name || fileData.original_filename || filename;
             fileSize = fileData.file_size || fileSize;
             fileType = fileData.file_type || fileData.mime_type || fileType;
             uploadedAt = fileData.created_at || uploadedAt;
-          } else if ((uploadResponse as any).id) {
-            const fileData = uploadResponse as any;
+          } 
+          // Check for data structure (expected by SingleFileUploadResponse)
+          else if (response.data) {
+            const fileData = response.data;
             fileId = fileData.id?.toString() || null;
             filename = fileData.original_filename || fileData.original_name || filename;
             fileSize = fileData.file_size || fileSize;
             fileType = fileData.file_type || fileData.mime_type || fileType;
             uploadedAt = fileData.created_at || uploadedAt;
+          } 
+          // Check if response itself has the file data
+          else if (response.id) {
+            fileId = response.id?.toString() || null;
+            filename = response.original_filename || response.original_name || filename;
+            fileSize = response.file_size || fileSize;
+            fileType = response.file_type || response.mime_type || fileType;
+            uploadedAt = response.created_at || uploadedAt;
           }
 
           if (!fileId) {
-            throw new Error('Invalid upload response: missing file ID');
+            console.error('❌ Invalid upload response structure:', uploadResponse);
+            throw new Error(`Invalid upload response: missing file ID. Response structure: ${JSON.stringify(uploadResponse)}`);
           }
 
           newFiles.push({

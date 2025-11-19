@@ -313,6 +313,29 @@ export interface BaseJobResultData {
   success: boolean;
   summary?: string;
   error?: string;
+  chapters?: Array<{
+    title: string;
+    timestamp: string | null;
+    description: string;
+  }>;
+  doc_id?: string | null;
+  conversation_id?: string | null;
+  bundle?: {
+    article_text?: string;
+    article?: string;
+    json_items?: Array<{
+      text: string;
+      start: number;
+      duration: number;
+    }>;
+    transcript_json?: any[];
+  };
+  metadata?: {
+    chat_enabled?: boolean;
+    fallback_used?: boolean;
+    fallback_reason?: string | null;
+    [key: string]: any;
+  };
 }
 
 // Text summary result data
