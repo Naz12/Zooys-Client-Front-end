@@ -175,12 +175,16 @@ export function useJobPolling(
     isPollingRef.current = false;
   }, [stopPolling]);
 
-  // Auto-start polling when job_id is provided
+  // Auto-start polling when job_id is provided (only if not already completed/failed)
   useEffect(() => {
     if (autoStart && job_id && !isPollingRef.current) {
+      // Check if status is already completed or failed - don't restart polling
+      if (status?.status === 'completed' || status?.status === 'failed') {
+        return;
+      }
       startPolling();
     }
-  }, [autoStart, job_id, startPolling]);
+  }, [autoStart, job_id, startPolling, status?.status]);
 
   // Cleanup on unmount
   useEffect(() => {

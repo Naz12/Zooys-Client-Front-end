@@ -15,6 +15,7 @@ import { UnlockForm } from '@/components/pdf/unlock-form';
 import { PageNumbersForm } from '@/components/pdf/page-numbers-form';
 import { AnnotateForm } from '@/components/pdf/annotate-form';
 import { EditPDFForm } from '@/components/pdf/edit-pdf-form';
+import { PDFEditorSplitView } from '@/components/pdf/pdf-editor-split-view';
 import { pdfOperationsApi } from '@/lib/api/pdf-operations-api';
 import { useJobPolling } from '@/lib/hooks/use-job-polling';
 import { toast } from 'react-hot-toast';
@@ -309,28 +310,46 @@ export default function PDFOperationsPage() {
     }
   }, [jobStatus, currentJobId, activeTab]);
 
-  // Start polling when currentJobId changes
+  // Start polling when currentJobId changes (only if not already completed)
   useEffect(() => {
-    if (currentJobId && !isPolling) {
+    if (currentJobId && !isPolling && jobStatus?.status !== 'completed' && jobStatus?.status !== 'failed') {
       startPolling();
     }
-  }, [currentJobId, isPolling, startPolling]);
+  }, [currentJobId, isPolling, startPolling, jobStatus?.status]);
 
-  // Handle download
+  // Handle download - use window.open to avoid CORS issues
   const handleDownload = useCallback(async (urls: string[]) => {
     for (const url of urls) {
       try {
-        const blob = await pdfOperationsApi.downloadFromUrl(url);
+        // Make URL absolute if needed
+        const absoluteUrl = url.startsWith('http') 
+          ? url 
+          : `http://localhost:8000${url}`;
+        
+        // Use window.open to avoid CORS issues with storage URLs
+        // This works because browser handles the download directly
         const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
+        link.href = absoluteUrl;
         link.download = url.split('/').pop() || 'download.pdf';
+        link.target = '_blank';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        URL.revokeObjectURL(link.href);
+        
+        toast.success('Download started!');
       } catch (error) {
         console.error('Download error:', error);
-        toast.error(`Failed to download ${url}`);
+        // Fallback: try window.open
+        try {
+          const absoluteUrl = url.startsWith('http') 
+            ? url 
+            : `http://localhost:8000${url}`;
+          window.open(absoluteUrl, '_blank');
+          toast.success('Download started!');
+        } catch (fallbackError) {
+          console.error('Fallback download error:', fallbackError);
+          toast.error(`Failed to download ${url}`);
+        }
       }
     }
   }, []);
@@ -454,35 +473,33 @@ export default function PDFOperationsPage() {
 
         {/* Operations Panel - Show only selected operation */}
         {activeTab && (
-          <Card>
-            <CardContent className="p-4 space-y-4">
-              {/* Edit PDF */}
-              {activeTab === 'edit' && (
-                <div className="space-y-4">
-                  <EditPDFForm
+          <>
+            {/* Edit PDF - Split View */}
+            {activeTab === 'edit' && fileId ? (
+              <Card className="h-[calc(100vh-200px)] flex flex-col">
+                <CardContent className="p-0 flex-1 overflow-hidden">
+                  <PDFEditorSplitView
+                    fileId={fileId}
+                    fileName={fileName}
                     params={editPDFParams}
                     onParamsChange={setEditPDFParams}
                     onSubmit={() => handleOperationSubmit('edit', editPDFParams)}
-                    disabled={isPolling || !fileId}
+                    disabled={isPolling}
                   />
-                  <Button
-                    onClick={() => handleOperationSubmit('edit', editPDFParams)}
-                    disabled={!fileId || isPolling}
-                    className="w-full"
-                  >
-                    {isPolling ? (
-                      <>
-                        <Loader2 size={16} className="mr-2 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      'Apply Edit'
-                    )}
-                  </Button>
-                </div>
-              )}
-
-              {/* Compress PDF */}
+                </CardContent>
+              </Card>
+            ) : activeTab === 'edit' ? (
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p>Please upload a PDF file first to use the editor</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  {/* Compress PDF */}
               {activeTab === 'compress' && (
                 <div className="space-y-4">
                   <CompressForm
@@ -692,8 +709,10 @@ export default function PDFOperationsPage() {
                   </Button>
                 </div>
               )}
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            )}
+          </>
         )}
       </div>
     </div>

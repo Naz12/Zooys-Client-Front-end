@@ -109,6 +109,7 @@ const nextConfig: NextConfig = {
         net: false,
         tls: false,
         child_process: false,
+        // Don't set canvas: false here - we want to resolve it to our stub
         'node:fs': false,
         'node:path': false,
         'node:crypto': false,
@@ -122,12 +123,33 @@ const nextConfig: NextConfig = {
       
       // Use webpack's IgnorePlugin to ignore node:fs and related imports
       const webpack = require('webpack');
+      const path = require('path');
       config.plugins = config.plugins || [];
       config.plugins.push(
         new webpack.IgnorePlugin({
           resourceRegExp: /^node:/,
         })
       );
+      
+      // Fix for react-pdf: Replace canvas module with stub
+      // Note: The postinstall script (scripts/patch-pdfjs.js) patches pdfjs-dist directly
+      // We just need to ensure canvas resolves to our stub as a fallback
+      const canvasStubPath = path.resolve(process.cwd(), 'lib', 'webpack', 'canvas-stub.js');
+      
+      // Set alias - this ensures any remaining canvas requires resolve to our stub
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'canvas': canvasStubPath,
+      };
+      
+      // Use NormalModuleReplacementPlugin as backup
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(
+          /^canvas$/,
+          canvasStubPath
+        )
+      );
+      
     }
     
     return config;
@@ -140,6 +162,8 @@ const nextConfig: NextConfig = {
   experimental: {
     // Enable optimized package imports
     optimizePackageImports: ['lucide-react'],
+    // Handle ESM packages like react-pdf
+    esmExternals: 'loose',
   },
 
   // Output configuration (only for production builds)

@@ -448,11 +448,19 @@ export default function PDFEditorPage() {
               <CardContent>
                 {selectedOperation ? (
                   <div className="space-y-4">
-                    <div className="border-2 border-dashed border-indigo-300 rounded-lg p-8 text-center">
+                    <div 
+                      className="border-2 border-dashed border-indigo-300 rounded-lg p-8 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 transition-colors"
+                      onClick={() => {
+                        if (!isUploading) {
+                          const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+                          fileInput?.click();
+                        }
+                      }}
+                    >
                       <Upload size={48} className="mx-auto text-indigo-500 mb-4" />
                       <Label 
                         htmlFor="file-upload" 
-                        className="text-lg font-medium cursor-pointer"
+                        className="text-lg font-medium cursor-pointer block"
                       >
                         {selectedOpInfo?.supportsMultiple 
                           ? 'Upload PDFs' 
